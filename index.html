@@ -1,0 +1,74 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SIGATT - Registro de Usuarios</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header con logo -->
+        <header class="header">
+            <div class="logo-container">
+                <div class="logo-icon">🛣️</div>
+                <div class="logo-text">
+                    <h1>SIGATT</h1>
+                    <span>Sistema Integral de Gestión Administrativa de Tránsito y Transporte</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Formulario de registro -->
+        <main class="main-content">
+            <div class="form-container">
+                <h2>Registro de Usuario</h2>
+                <p class="subtitle">Complete sus datos para iniciar el proceso</p>
+                
+                <form id="registroForm" class="registro-form">
+                    <div class="form-group">
+                        <label for="nombres">Nombres y Apellidos</label>
+                        <input type="text" id="nombres" name="nombres" 
+                               placeholder="Ingrese sus nombres completos" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="email">Correo Electrónico</label>
+                        <input type="email" id="email" name="email" 
+                               placeholder="ejemplo@correo.com" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="celular">Número de Contacto</label>
+                        <input type="tel" id="celular" name="celular" 
+                               placeholder="+57 300 123 4567" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="telegramId">ID de Telegram</label>
+                        <input type="text" id="telegramId" name="telegramId" 
+                               placeholder="Ingrese su ID de Telegram" required>
+                        <small>⚠️ Debe ser el mismo ID con el que interactúa con nuestro bot</small>
+                    </div>
+                    
+                    <button type="submit" class="btn-submit">
+                        <span>Registrarse</span>
+                        <svg viewBox="0 0 24 24" width="20" height="20">
+                            <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/>
+                        </svg>
+                    </button>
+                </form>
+                
+                <div id="mensaje" class="mensaje"></div>
+            </div>
+        </main>
+        
+        <footer class="footer">
+            <p>&copy; 2026 SIGATT - Todos los derechos reservados</p>
+        </footer>
+    </div>
+    
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
