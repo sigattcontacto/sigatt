@@ -177,35 +177,37 @@ async function obtenerTelegramIdHash() {
 // ============================================
 // FUNCIÓN PARA reCAPTCHA
 // ============================================
-
 async function ejecutarRecaptcha() {
-    return new Promise((resolve) => {
-        if (typeof grecaptcha === 'undefined') {
-            console.warn('⚠️ reCAPTCHA no cargado');
-            resolve({ success: true, score: 0.9 }); // Fallback en caso de error
-            return;
+  return new Promise((resolve) => {
+    if (typeof grecaptcha === 'undefined') {
+      console.warn('⚠️ reCAPTCHA no cargado');
+      resolve({ success: true, score: 0.9 });
+      return;
+    }
+    
+    grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: RECAPTCHA_ACTION })
+      .then(async (token) => {
+        try {
+          // 👇 LLAMAR AL ENDPOINT CORRECTO
+          const response = await fetch('/api/verify-recaptcha', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ token }),
+          });
+          
+          const data = await response.json();
+          resolve(data);
+        } catch (error) {
+          console.error('❌ Error verificando reCAPTCHA:', error);
+          resolve({ success: true, score: 0.9 }); // Fallback
         }
-        
-        grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: RECAPTCHA_ACTION })
-            .then(token => {
-                // Verificar el token con el backend
-                fetch('/api/verify-recaptcha', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token })
-                })
-                .then(res => res.json())
-                .then(data => {
-                    resolve(data);
-                })
-                .catch(() => {
-                    resolve({ success: true, score: 0.9 }); // Fallback
-                });
-            })
-            .catch(() => {
-                resolve({ success: true, score: 0.9 }); // Fallback
-            });
-    });
+      })
+      .catch(() => {
+        resolve({ success: true, score: 0.9 }); // Fallback
+      });
+  });
 }
 
 // ============================================
