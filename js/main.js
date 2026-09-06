@@ -6,7 +6,7 @@ import { swrCache } from './swr-cache.js';
 // ============================================
 // CONFIGURACIÓN
 // ============================================
-const RECAPTCHA_SITE_KEY = 'TU_SITE_KEY_DE_RECAPTCHA_V3';
+const RECAPTCHA_SITE_KEY = '6LcKwKstAAAAAGzwQheRwzFw8upHcFpkYWosjBbD';
 const RECAPTCHA_ACTION = 'registro_usuario';
 
 // Inicializar rate limiting
