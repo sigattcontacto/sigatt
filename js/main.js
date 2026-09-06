@@ -1,5 +1,5 @@
 // js/main.js - Con flujo de token y aprobación manual
-import { getSupabase } from './supabase-config.js';
+// ✅ NO importar getSupabase al inicio
 import { rateLimit } from './rate-limit.js';
 import { swrCache } from './swr-cache.js';
 import { loadEnv } from './config-loader.js';
@@ -76,7 +76,6 @@ async function validarToken(token) {
         const data = await response.json();
         
         if (!data.success) {
-            // Si es rechazado, mostrar el motivo
             if (data.estado === 'rechazado') {
                 mostrarStatus(`⚠️ Tu solicitud fue rechazada. Motivo: ${data.motivo_rechazo || 'No especificado'}`, 'error');
                 formContainer.style.display = 'none';
@@ -95,14 +94,12 @@ async function validarToken(token) {
             num_celular: data.num_celular || ''
         };
 
-        // Verificar si el token expiró
         if (data.expirado) {
             mostrarStatus('⚠️ El enlace ha expirado. Solicita uno nuevo desde el bot de Telegram.', 'error');
             formContainer.style.display = 'none';
             return false;
         }
 
-        // Si ya fue aprobado, redirigir al dashboard
         if (data.estado === 'aprobado') {
             mostrarStatus('✅ Tu registro ya fue aprobado. Redirigiendo al dashboard...', 'exito');
             formContainer.style.display = 'none';
@@ -421,7 +418,7 @@ async function getClientIP() {
 // ============================================
 async function init() {
     try {
-        // 1. Cargar variables de entorno
+        // 1. Cargar variables de entorno (esto crea window.ENV)
         const env = await loadEnv();
         RECAPTCHA_SITE_KEY = env.VITE_RECAPTCHA_SITE_KEY;
         RECAPTCHA_ACTION = env.VITE_RECAPTCHA_ACTION || 'registro_usuario';
@@ -435,7 +432,8 @@ async function init() {
             return;
         }
 
-        // 2. Inicializar Supabase
+        // 2. ✅ IMPORTAR getSupabase AQUÍ (después de que window.ENV exista)
+        const { getSupabase } = await import('./supabase-config.js');
         supabaseClient = getSupabase();
 
         // 3. Obtener token de la URL
