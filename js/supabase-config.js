@@ -1,25 +1,19 @@
-// js/supabase-config.js - VERSIÓN CORREGIDA
+// js/supabase-config.js
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { loadEnv } from './config-loader.js';
 
-// Cargar variables de entorno de forma asíncrona
-let supabaseInstance = null;
+// Leer variables desde el objeto global window.ENV
+const supabaseUrl = window.ENV?.VITE_SUPABASE_URL;
+const supabaseAnonKey = window.ENV?.VITE_SUPABASE_ANON_KEY;
 
-export async function getSupabase() {
-  if (supabaseInstance) {
-    return supabaseInstance;
-  }
-
-  const env = await loadEnv();
-  
-  if (!env.VITE_SUPABASE_URL) {
-    throw new Error('❌ VITE_SUPABASE_URL no está configurada en Vercel');
-  }
-  if (!env.VITE_SUPABASE_ANON_KEY) {
-    throw new Error('❌ VITE_SUPABASE_ANON_KEY no está configurada en Vercel');
-  }
-
-  supabaseInstance = createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_ANON_KEY);
-  console.log('✅ Supabase configurado correctamente');
-  return supabaseInstance;
+// Validación estricta
+if (!supabaseUrl) {
+    throw new Error('❌ VITE_SUPABASE_URL no está configurada en window.ENV');
 }
+if (!supabaseAnonKey) {
+    throw new Error('❌ VITE_SUPABASE_ANON_KEY no está configurada en window.ENV');
+}
+
+// ✅ EXPORTACIÓN CORRECTA: usando "export" en lugar de "export default"
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+console.log('✅ Supabase configurado correctamente desde window.ENV');
