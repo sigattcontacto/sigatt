@@ -13,6 +13,7 @@ let supabase;
 let RECAPTCHA_SITE_KEY;
 let RECAPTCHA_ACTION;
 let VERIFY_RECAPTCHA_URL;
+let GET_TELEGRAM_ID_URL;  // ✅ NUEVA VARIABLE
 
 // Inicializar rate limiting (se puede hacer ahora mismo)
 const rateLimiter = rateLimit({
@@ -96,7 +97,7 @@ function ocultarErrores() {
 }
 
 // ============================================
-// FUNCIÓN PARA HASH DE TELEGRAM ID
+// FUNCIÓN PARA HASH DE TELEGRAM ID (ACTUALIZADA)
 // ============================================
 
 async function obtenerTelegramIdHash() {
@@ -107,7 +108,8 @@ async function obtenerTelegramIdHash() {
             return cached;
         }
         
-        const response = await fetch('/api/get-telegram-id', {
+        // ✅ USAR LA VARIABLE DE ENTORNO, NO HARDCODEAR
+        const response = await fetch(GET_TELEGRAM_ID_URL, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json'
@@ -115,7 +117,10 @@ async function obtenerTelegramIdHash() {
         });
         
         if (!response.ok) {
-            throw new Error('No se pudo obtener el ID de Telegram');
+            if (response.status === 404) {
+                throw new Error('Endpoint get-telegram-id no encontrado. Verifica que la Edge Function esté desplegada.');
+            }
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
         
         const data = await response.json();
@@ -134,7 +139,9 @@ async function obtenerTelegramIdHash() {
             return hashHex;
         }
         
+        console.warn('⚠️ Usuario no vinculado con Telegram');
         return null;
+        
     } catch (error) {
         console.error('❌ Error al obtener Telegram ID:', error);
         return null;
@@ -337,31 +344,34 @@ form.addEventListener('submit', async (e) => {
 });
 
 // ============================================
-// INICIALIZACIÓN
+// INICIALIZACIÓN (ACTUALIZADA)
 // ============================================
 
 async function init() {
     try {
-        // 1. Cargar variables de entorno
         const env = await loadEnv();
         RECAPTCHA_SITE_KEY = env.VITE_RECAPTCHA_SITE_KEY;
         RECAPTCHA_ACTION = env.VITE_RECAPTCHA_ACTION || 'registro_usuario';
         VERIFY_RECAPTCHA_URL = env.VITE_VERIFY_RECAPTCHA_URL;
+        GET_TELEGRAM_ID_URL = env.VITE_GET_TELEGRAM_ID_URL;  // ✅ NUEVA
 
-        // 2. Inicializar Supabase
+        // Validar que la nueva variable existe
+        if (!GET_TELEGRAM_ID_URL) {
+            console.warn('⚠️ VITE_GET_TELEGRAM_ID_URL no configurada. El registro fallará al obtener Telegram ID.');
+        }
+
         supabase = await getSupabase();
 
-        // 3. SWR - Configurar revalidación
         setInterval(() => {
             swrCache.revalidate();
         }, 5 * 60 * 1000);
 
-        // 4. Configurar validaciones en tiempo real
         setupRealTimeValidations();
 
         console.log('🚀 SIGATT - Sistema de Registro Iniciado');
         console.log('📱 Versión: 2.0 (Responsive + reCAPTCHA + SWR)');
         console.log('🔗 Endpoint reCAPTCHA:', VERIFY_RECAPTCHA_URL);
+        console.log('🔗 Endpoint Telegram ID:', GET_TELEGRAM_ID_URL);
         console.log('✅ Todas las variables cargadas correctamente');
         
     } catch (error) {
