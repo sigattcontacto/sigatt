@@ -16,6 +16,7 @@ let VALIDAR_TOKEN_URL;
 // Token y telegram_id obtenidos del backend
 let telegramId = null;
 let tokenValido = false;
+let datosPrecargados = {};
 
 // Rate limiting
 const rateLimiter = rateLimit({
@@ -30,6 +31,7 @@ const form = document.getElementById('registroForm');
 const mensajeDiv = document.getElementById('mensaje');
 const statusMessage = document.getElementById('statusMessage');
 const submitBtn = document.getElementById('submitBtn');
+const formContainer = document.getElementById('formContainer');
 
 const nombresInput = document.getElementById('nombres');
 const emailInput = document.getElementById('email');
@@ -76,16 +78,35 @@ async function validarToken(token) {
             throw new Error(data.message || 'Token inválido o expirado');
         }
 
-        // Guardar el telegram_id
+        // Guardar el telegram_id y los datos precargados
         telegramId = data.telegram_id;
         tokenValido = true;
-        
+        datosPrecargados = {
+            nombres_apellidos: data.nombres_apellidos || '',
+            email: data.email || '',
+            num_celular: data.num_celular || ''
+        };
+
+        // Verificar estado del usuario
+        if (data.estado === 'bloqueado') {
+            mostrarStatus('⛔ Tu acceso ha sido bloqueado. Contacta a soporte.', 'error');
+            formContainer.style.display = 'none';
+            return false;
+        }
+
+        if (data.estado === 'rechazado') {
+            mostrarStatus(`⚠️ Tu solicitud fue rechazada. Motivo: ${data.motivo_rechazo || 'No especificado'}`, 'error');
+            formContainer.style.display = 'none';
+            return false;
+        }
+
         console.log('✅ Token válido. Telegram ID:', telegramId);
         return true;
 
     } catch (error) {
         console.error('❌ Error validando token:', error);
         mostrarStatus(`⚠️ ${error.message}`, 'error');
+        formContainer.style.display = 'none';
         return false;
     }
 }
@@ -270,7 +291,7 @@ form.addEventListener('submit', async (e) => {
             nombres_apellidos: formData.get('nombres').trim(),
             email: formData.get('email').trim().toLowerCase(),
             num_celular: formData.get('celular').trim(),
-            telegram_id: telegramId  // ✅ Se envía de forma invisible
+            telegram_id: telegramId
         };
         
         // 4. Validar datos
@@ -289,7 +310,7 @@ form.addEventListener('submit', async (e) => {
             return;
         }
         
-        // 6. Verificar email duplicado
+        // 6. Verificar email duplicado en usuarios
         const { data: existingUser, error: checkError } = await supabaseClient
             .from('usuarios')
             .select('email')
@@ -303,8 +324,30 @@ form.addEventListener('submit', async (e) => {
             submitBtn.classList.remove('loading');
             return;
         }
+
+        // 7. Verificar si el email ya está en pendientes (aprobado o pendiente)
+        const { data: pendingCheck, error: pendingError } = await supabaseClient
+            .from('usuarios_pendientes')
+            .select('estado, telegram_id')
+            .eq('email', data.email)
+            .maybeSingle();
+
+        if (pendingCheck) {
+            if (pendingCheck.estado === 'pendiente') {
+                mostrarMensaje('⚠️ Ya existe una solicitud pendiente con este correo.', 'error');
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('loading');
+                return;
+            }
+            if (pendingCheck.estado === 'aprobado') {
+                mostrarMensaje('⚠️ Este correo ya fue aprobado. Contacta a soporte.', 'error');
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('loading');
+                return;
+            }
+        }
         
-        // 7. Registrar usuario
+        // 8. Registrar usuario en tabla principal
         const { data: newUser, error: insertError } = await supabaseClient
             .from('usuarios')
             .insert([data])
@@ -313,13 +356,27 @@ form.addEventListener('submit', async (e) => {
         
         if (insertError) throw insertError;
         
-        // 8. Crear proceso inicial
+        // 9. Crear proceso inicial
         await crearProcesoInicial(newUser.user_id);
         
-        // 9. Marcar el token como usado (opcional)
-        await marcarTokenUsado();
+        // 10. Actualizar estado en usuarios_pendientes a 'aprobado'
+        const token = getTokenFromURL();
+        if (token) {
+            await supabaseClient
+                .from('usuarios_pendientes')
+                .update({ 
+                    usado: true, 
+                    usado_en: new Date().toISOString(),
+                    estado: 'aprobado',
+                    nombres_apellidos: data.nombres_apellidos,
+                    email: data.email,
+                    num_celular: data.num_celular
+                })
+                .eq('token_temporal', token);
+            console.log('✅ Token marcado como usado y estado actualizado a aprobado');
+        }
         
-        // 10. Éxito
+        // 11. Éxito
         mostrarMensaje('✅ ¡Registro exitoso! Revisa tu correo para confirmar.', 'exito');
         form.reset();
         
@@ -365,25 +422,6 @@ async function crearProcesoInicial(userId) {
 }
 
 // ============================================
-// FUNCIÓN PARA MARCAR TOKEN COMO USADO
-// ============================================
-async function marcarTokenUsado() {
-    try {
-        const token = getTokenFromURL();
-        if (!token) return;
-        
-        await supabaseClient
-            .from('usuarios_pendientes')
-            .update({ usado: true, usado_en: new Date().toISOString() })
-            .eq('token_temporal', token);
-            
-        console.log('✅ Token marcado como usado');
-    } catch (error) {
-        console.warn('⚠️ No se pudo marcar el token como usado:', error);
-    }
-}
-
-// ============================================
 // INICIALIZACIÓN
 // ============================================
 async function init() {
@@ -399,7 +437,7 @@ async function init() {
         if (!VALIDAR_TOKEN_URL) {
             console.warn('⚠️ VITE_VALIDAR_TOKEN_URL no configurada en Vercel');
             mostrarStatus('⚠️ Error de configuración. Contacte a soporte.', 'error');
-            form.style.display = 'none';
+            formContainer.style.display = 'none';
             return;
         }
 
@@ -415,13 +453,25 @@ async function init() {
             const valido = await validarToken(token);
             
             if (!valido) {
-                form.style.display = 'none';
+                formContainer.style.display = 'none';
                 return;
             }
 
-            // 5. Token válido → Mostrar formulario
+            // 5. Token válido → Mostrar formulario y precargar datos
             ocultarStatus();
-            form.style.display = 'grid';
+            formContainer.style.display = 'block';
+            
+            // 6. Precargar datos si existen
+            if (datosPrecargados.nombres_apellidos) {
+                nombresInput.value = datosPrecargados.nombres_apellidos;
+            }
+            if (datosPrecargados.email) {
+                emailInput.value = datosPrecargados.email;
+            }
+            if (datosPrecargados.num_celular) {
+                celularInput.value = datosPrecargados.num_celular;
+            }
+            
             setupRealTimeValidations();
             
             console.log('🚀 SIGATT - Registro Seguro Iniciado');
@@ -430,13 +480,13 @@ async function init() {
         } else {
             // Sin token → Mostrar mensaje informativo
             mostrarStatus('ℹ️ Para registrarte, inicia el proceso desde el bot de Telegram.', 'info');
-            form.style.display = 'none';
+            formContainer.style.display = 'none';
         }
         
     } catch (error) {
         console.error('❌ Error en la inicialización:', error);
         mostrarStatus('⚠️ Error de configuración. Contacte a soporte.', 'error');
-        form.style.display = 'none';
+        formContainer.style.display = 'none';
     }
 }
 
