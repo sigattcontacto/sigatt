@@ -13,6 +13,7 @@ export async function loadEnv() {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
     const data = await response.json();
+    window.ENV = data;
     envCache = data;
     console.log('✅ Variables de entorno cargadas desde /api/env');
     return data;
