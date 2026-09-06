@@ -1,4 +1,4 @@
-// js/main.js - Con flujo de token seguro
+// js/main.js - Con flujo de token y aprobación manual
 import { supabase } from './supabase-config.js';
 import { rateLimit } from './rate-limit.js';
 import { swrCache } from './swr-cache.js';
@@ -17,6 +17,7 @@ let VALIDAR_TOKEN_URL;
 let telegramId = null;
 let tokenValido = false;
 let datosPrecargados = {};
+let pendingId = null; // ID del registro en usuarios_pendientes
 
 // Rate limiting
 const rateLimiter = rateLimit({
@@ -78,8 +79,9 @@ async function validarToken(token) {
             throw new Error(data.message || 'Token inválido o expirado');
         }
 
-        // Guardar el telegram_id y los datos precargados
+        // Guardar el telegram_id, pending_id y los datos precargados
         telegramId = data.telegram_id;
+        pendingId = data.pending_id; // ID del registro en usuarios_pendientes
         tokenValido = true;
         datosPrecargados = {
             nombres_apellidos: data.nombres_apellidos || '',
@@ -88,14 +90,25 @@ async function validarToken(token) {
         };
 
         // Verificar estado del usuario
-        if (data.estado === 'bloqueado') {
-            mostrarStatus('⛔ Tu acceso ha sido bloqueado. Contacta a soporte.', 'error');
+        if (data.estado === 'rechazado') {
+            mostrarStatus(`⚠️ Tu solicitud fue rechazada. Motivo: ${data.motivo_rechazo || 'No especificado'}`, 'error');
             formContainer.style.display = 'none';
             return false;
         }
 
-        if (data.estado === 'rechazado') {
-            mostrarStatus(`⚠️ Tu solicitud fue rechazada. Motivo: ${data.motivo_rechazo || 'No especificado'}`, 'error');
+        // Si ya fue aprobado, redirigir al dashboard
+        if (data.estado === 'aprobado') {
+            mostrarStatus('✅ Tu registro ya fue aprobado. Redirigiendo al dashboard...', 'exito');
+            formContainer.style.display = 'none';
+            setTimeout(() => {
+                window.location.href = '/dashboard';
+            }, 3000);
+            return false;
+        }
+
+        // Verificar si el token expiró
+        if (data.expirado) {
+            mostrarStatus('⚠️ El enlace ha expirado. Solicita uno nuevo desde el bot de Telegram.', 'error');
             formContainer.style.display = 'none';
             return false;
         }
@@ -278,7 +291,7 @@ form.addEventListener('submit', async (e) => {
         }
         
         // 2. Verificar que el token sea válido
-        if (!tokenValido || !telegramId) {
+        if (!tokenValido || !telegramId || !pendingId) {
             mostrarMensaje('⚠️ Sesión inválida. Por favor, inicia el registro desde el bot de Telegram.', 'error');
             submitBtn.disabled = false;
             submitBtn.classList.remove('loading');
@@ -310,26 +323,28 @@ form.addEventListener('submit', async (e) => {
             return;
         }
         
-        // 6. Verificar email duplicado en usuarios
+        // 6. Verificar si el email ya está registrado en usuarios
         const { data: existingUser, error: checkError } = await supabaseClient
             .from('usuarios')
             .select('email')
-            .eq('email', data.email);
+            .eq('email', data.email)
+            .maybeSingle();
         
         if (checkError) throw checkError;
         
-        if (existingUser && existingUser.length > 0) {
+        if (existingUser) {
             mostrarMensaje('⚠️ El correo electrónico ya está registrado.', 'error');
             submitBtn.disabled = false;
             submitBtn.classList.remove('loading');
             return;
         }
 
-        // 7. Verificar si el email ya está en pendientes (aprobado o pendiente)
+        // 7. Verificar si el email ya está en pendientes (aprobado o pendiente con otro token)
         const { data: pendingCheck, error: pendingError } = await supabaseClient
             .from('usuarios_pendientes')
-            .select('estado, telegram_id')
+            .select('id, estado, email')
             .eq('email', data.email)
+            .neq('id', pendingId) // Excluir el registro actual
             .maybeSingle();
 
         if (pendingCheck) {
@@ -347,46 +362,41 @@ form.addEventListener('submit', async (e) => {
             }
         }
         
-        // 8. Registrar usuario en tabla principal
-        const { data: newUser, error: insertError } = await supabaseClient
-            .from('usuarios')
-            .insert([data])
-            .select()
-            .single();
-        
-        if (insertError) throw insertError;
-        
-        // 9. Crear proceso inicial
-        await crearProcesoInicial(newUser.user_id);
-        
-        // 10. Actualizar estado en usuarios_pendientes a 'aprobado'
+        // 8. Actualizar el registro en usuarios_pendientes con los datos del formulario
         const token = getTokenFromURL();
-        if (token) {
-            await supabaseClient
-                .from('usuarios_pendientes')
-                .update({ 
-                    usado: true, 
-                    usado_en: new Date().toISOString(),
-                    estado: 'aprobado',
-                    nombres_apellidos: data.nombres_apellidos,
-                    email: data.email,
-                    num_celular: data.num_celular
-                })
-                .eq('token_temporal', token);
-            console.log('✅ Token marcado como usado y estado actualizado a aprobado');
-        }
+        const { error: updateError } = await supabaseClient
+            .from('usuarios_pendientes')
+            .update({
+                nombres_apellidos: data.nombres_apellidos,
+                email: data.email,
+                num_celular: data.num_celular,
+                usado: true,
+                usado_en: new Date().toISOString(),
+                ip_registro: await getClientIP(),
+                user_agent: navigator.userAgent
+            })
+            .eq('id', pendingId);
+
+        if (updateError) throw updateError;
         
-        // 11. Éxito
-        mostrarMensaje('✅ ¡Registro exitoso! Revisa tu correo para confirmar.', 'exito');
+        // 9. Éxito - Solicitud enviada para aprobación
+        mostrarMensaje(
+            '✅ ¡Solicitud enviada correctamente!\n\n' +
+            '📋 Un administrador revisará tu registro.\n' +
+            '⏳ Recibirás una notificación cuando sea aprobado.',
+            'exito'
+        );
         form.reset();
+        formContainer.style.display = 'none';
         
+        // Opcional: redirigir después de 5 segundos
         setTimeout(() => {
-            window.location.href = '/dashboard';
-        }, 3000);
+            window.location.href = '/';
+        }, 5000);
         
     } catch (error) {
         console.error('❌ Error:', error);
-        mostrarMensaje('❌ Error al registrar: ' + error.message, 'error');
+        mostrarMensaje('❌ Error al enviar solicitud: ' + error.message, 'error');
     } finally {
         submitBtn.disabled = false;
         submitBtn.classList.remove('loading');
@@ -394,30 +404,16 @@ form.addEventListener('submit', async (e) => {
 });
 
 // ============================================
-// FUNCIÓN PARA CREAR PROCESO INICIAL
+// FUNCIÓN PARA OBTENER IP DEL CLIENTE
 // ============================================
-async function crearProcesoInicial(userId) {
+async function getClientIP() {
     try {
-        const codigo = `SIG-${Date.now().toString(36).toUpperCase()}`;
-        
-        const { data, error } = await supabaseClient
-            .from('procesos')
-            .insert([{
-                user_id: userId,
-                codigo_proceso: codigo,
-                estado: 'pendiente'
-            }])
-            .select()
-            .single();
-        
-        if (error) throw error;
-        
-        console.log('✅ Proceso inicial creado:', codigo);
-        return data;
-        
+        const response = await fetch('https://api.ipify.org?format=json');
+        const data = await response.json();
+        return data.ip || 'no disponible';
     } catch (error) {
-        console.error('❌ Error al crear proceso inicial:', error);
-        throw error;
+        console.warn('⚠️ No se pudo obtener la IP:', error);
+        return 'no disponible';
     }
 }
 
@@ -475,7 +471,7 @@ async function init() {
             setupRealTimeValidations();
             
             console.log('🚀 SIGATT - Registro Seguro Iniciado');
-            console.log('📱 Versión: 2.0 (Token Seguro + reCAPTCHA + SWR)');
+            console.log('📱 Versión: 2.0 (Token Seguro + Aprobación Manual)');
             console.log('✅ Token válido. Telegram ID:', telegramId);
         } else {
             // Sin token → Mostrar mensaje informativo
