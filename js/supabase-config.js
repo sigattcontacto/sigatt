@@ -1,24 +1,25 @@
 // js/supabase-config.js
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-// Función para obtener el cliente de Supabase (NO se ejecuta inmediatamente)
+// ✅ USAR LA URL DEL PROYECTO, NO LA DE LA EDGE FUNCTION
+const supabaseUrl = window.ENV?.VITE_SUPABASE_URL;        // ← Debe ser: https://pfjaclsxhxtipjawymqb.supabase.co
+const supabaseAnonKey = window.ENV?.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl) {
+    throw new Error('❌ VITE_SUPABASE_URL no está configurada en window.ENV');
+}
+if (!supabaseAnonKey) {
+    throw new Error('❌ VITE_SUPABASE_ANON_KEY no está configurada en window.ENV');
+}
+
+console.log('✅ Supabase configurado correctamente desde window.ENV');
+
+// ✅ CREAR CLIENTE CON LA URL CORRECTA
 export function getSupabaseClient() {
-    // Esperar a que window.ENV exista
-    const supabaseUrl = window.ENV?.VITE_SUPABASE_URL;
-    const supabaseAnonKey = window.ENV?.VITE_SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl) {
-        throw new Error('❌ VITE_SUPABASE_URL no está configurada en window.ENV');
-    }
-    if (!supabaseAnonKey) {
-        throw new Error('❌ VITE_SUPABASE_ANON_KEY no está configurada en window.ENV');
-    }
-
-    console.log('✅ Supabase configurado correctamente desde window.ENV');
     return createClient(supabaseUrl, supabaseAnonKey);
 }
 
-// Exportar una instancia perezosa (lazy) que se crea cuando se necesita
+// Exportar una instancia perezosa (lazy)
 let supabaseInstance = null;
 
 export function getSupabase() {
