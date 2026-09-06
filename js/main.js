@@ -4,10 +4,23 @@ import { rateLimit } from './rate-limit.js';
 import { swrCache } from './swr-cache.js';
 
 // ============================================
-// CONFIGURACIÓN
+// CONFIGURACIÓN (TODO DESDE VARIABLES DE ENTORNO)
 // ============================================
-const RECAPTCHA_SITE_KEY = '6LcKwKstAAAAAGzwQheRwzFw8upHcFpkYWosjBbD';
-const RECAPTCHA_ACTION = 'registro_usuario';
+
+const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
+const RECAPTCHA_ACTION = import.meta.env.VITE_RECAPTCHA_ACTION;
+const VERIFY_RECAPTCHA_URL = import.meta.env.VITE_VERIFY_RECAPTCHA_URL;
+
+// Validar que las variables de entorno estén configuradas
+if (!RECAPTCHA_SITE_KEY) {
+    console.error('❌ FALTA: VITE_RECAPTCHA_SITE_KEY no está configurada en Vercel');
+}
+if (!RECAPTCHA_ACTION) {
+    console.error('❌ FALTA: VITE_RECAPTCHA_ACTION no está configurada en Vercel');
+}
+if (!VERIFY_RECAPTCHA_URL) {
+    console.error('❌ FALTA: VITE_VERIFY_RECAPTCHA_URL no está configurada en Vercel');
+}
 
 // Inicializar rate limiting
 const rateLimiter = rateLimit({
@@ -175,39 +188,45 @@ async function obtenerTelegramIdHash() {
 }
 
 // ============================================
-// FUNCIÓN PARA reCAPTCHA
+// FUNCIÓN PARA reCAPTCHA (TODO DESDE VARIABLES DE ENTORNO)
 // ============================================
 async function ejecutarRecaptcha() {
-  return new Promise((resolve) => {
-    if (typeof grecaptcha === 'undefined') {
-      console.warn('⚠️ reCAPTCHA no cargado');
-      resolve({ success: true, score: 0.9 });
-      return;
-    }
-    
-    grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: RECAPTCHA_ACTION })
-      .then(async (token) => {
-        try {
-          // 👇 LLAMAR AL ENDPOINT CORRECTO
-          const response = await fetch('/api/verify-recaptcha', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ token }),
-          });
-          
-          const data = await response.json();
-          resolve(data);
-        } catch (error) {
-          console.error('❌ Error verificando reCAPTCHA:', error);
-          resolve({ success: true, score: 0.9 }); // Fallback
+    return new Promise((resolve) => {
+        if (typeof grecaptcha === 'undefined') {
+            console.warn('⚠️ reCAPTCHA no cargado');
+            resolve({ success: true, score: 0.9 });
+            return;
         }
-      })
-      .catch(() => {
-        resolve({ success: true, score: 0.9 }); // Fallback
-      });
-  });
+        
+        grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: RECAPTCHA_ACTION })
+            .then(async (token) => {
+                try {
+                    // Llamar a la Edge Function de Supabase
+                    const response = await fetch(VERIFY_RECAPTCHA_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ token }),
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    const data = await response.json();
+                    resolve(data);
+                } catch (error) {
+                    console.error('❌ Error verificando reCAPTCHA:', error);
+                    // Fallback: permitir el registro si la verificación falla
+                    resolve({ success: true, score: 0.9 });
+                }
+            })
+            .catch((error) => {
+                console.error('❌ Error en grecaptcha.execute:', error);
+                resolve({ success: true, score: 0.9 });
+            });
+    });
 }
 
 // ============================================
@@ -405,3 +424,4 @@ setInterval(() => {
 
 console.log('🚀 SIGATT - Sistema de Registro Iniciado');
 console.log('📱 Versión: 2.0 (Responsive + reCAPTCHA + SWR)');
+console.log('🔗 Endpoint reCAPTCHA:', VERIFY_RECAPTCHA_URL);
