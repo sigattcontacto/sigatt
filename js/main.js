@@ -1,10 +1,12 @@
+// js/main.js - CORREGIDO
+
 import { getSupabase } from './supabase-config.js';
 import { rateLimit } from './rate-limit.js';
 import { swrCache } from './swr-cache.js';
 import { loadEnv } from './config-loader.js';
 
 // ============================================
-// CONFIGURACIÓN
+// CONFIGURACIÓN GLOBAL
 // ============================================
 
 let supabase;
@@ -12,34 +14,16 @@ let RECAPTCHA_SITE_KEY;
 let RECAPTCHA_ACTION;
 let VERIFY_RECAPTCHA_URL;
 
-// Inicializar todo
-async function init() {
-  try {
-    // 1. Cargar variables de entorno
-    const env = await loadEnv();
-    RECAPTCHA_SITE_KEY = env.VITE_RECAPTCHA_SITE_KEY;
-    RECAPTCHA_ACTION = env.VITE_RECAPTCHA_ACTION || 'registro_usuario';
-    VERIFY_RECAPTCHA_URL = env.VITE_VERIFY_RECAPTCHA_URL;
-
-    // 2. Inicializar Supabase
-    supabase = await getSupabase();
-
-    console.log('🚀 SIGATT - Sistema de Registro Iniciado');
-    console.log('📱 Versión: 2.0 (Responsive + reCAPTCHA + SWR)');
-    console.log('🔗 Endpoint reCAPTCHA:', VERIFY_RECAPTCHA_URL);
-
-    // 3. Configurar el formulario
-    setupForm();
-    
-  } catch (error) {
-    console.error('❌ Error en la inicialización:', error);
-    mostrarMensaje('⚠️ Error de configuración. Contacte a soporte.', 'error');
-  }
-}
+// Inicializar rate limiting (se puede hacer ahora mismo)
+const rateLimiter = rateLimit({
+    maxRequests: 5,
+    windowMs: 60000
+});
 
 // ============================================
 // DOM ELEMENTS
 // ============================================
+
 const form = document.getElementById('registroForm');
 const mensajeDiv = document.getElementById('mensaje');
 const submitBtn = document.getElementById('submitBtn');
@@ -55,54 +39,7 @@ const emailError = document.getElementById('emailError');
 const celularError = document.getElementById('celularError');
 
 // ============================================
-// VALIDACIONES EN TIEMPO REAL
-// ============================================
-
-// Validar nombres
-nombresInput.addEventListener('input', function() {
-    const value = this.value.trim();
-    if (value.length < 3) {
-        showError(nombresError, '⚠️ Mínimo 3 caracteres');
-    } else if (value.length > 100) {
-        showError(nombresError, '⚠️ Máximo 100 caracteres');
-    } else if (!/^[a-zA-ZáéíóúñÑ\s]+$/.test(value)) {
-        showError(nombresError, '⚠️ Solo letras y espacios');
-    } else {
-        hideError(nombresError);
-    }
-});
-
-// Validar email en tiempo real
-emailInput.addEventListener('input', function() {
-    const value = this.value.trim();
-    const emailRegex = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i;
-    
-    if (!value) {
-        showError(emailError, '⚠️ El correo es requerido');
-    } else if (!emailRegex.test(value)) {
-        showError(emailError, '⚠️ Ingrese un correo válido (ejemplo@dominio.com)');
-    } else {
-        hideError(emailError);
-    }
-});
-
-// Validar celular en tiempo real (SOLO NÚMEROS)
-celularInput.addEventListener('input', function() {
-    // Solo permitir números
-    this.value = this.value.replace(/\D/g, '');
-    
-    const value = this.value.trim();
-    if (value.length < 10) {
-        showError(celularError, `⚠️ Mínimo 10 dígitos (${value.length}/10)`);
-    } else if (value.length > 15) {
-        showError(celularError, '⚠️ Máximo 15 dígitos');
-    } else {
-        hideError(celularError);
-    }
-});
-
-// ============================================
-// FUNCIONES DE VALIDACIÓN
+// FUNCIONES DE VALIDACIÓN Y UI (sin cambios)
 // ============================================
 
 function showError(element, message) {
@@ -122,20 +59,17 @@ function hideError(element) {
 function validarFormulario(data) {
     let isValid = true;
     
-    // Validar nombres
     if (data.nombres_apellidos.length < 3) {
         showError(nombresError, '⚠️ Ingrese nombres y apellidos completos');
         isValid = false;
     }
     
-    // Validar email
     const emailRegex = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i;
     if (!emailRegex.test(data.email)) {
         showError(emailError, '⚠️ Ingrese un correo electrónico válido');
         isValid = false;
     }
     
-    // Validar celular (solo números)
     const celularRegex = /^[0-9]{10,15}$/;
     if (!celularRegex.test(data.num_celular)) {
         showError(celularError, '⚠️ Ingrese mínimo 10 dígitos numéricos');
@@ -145,20 +79,34 @@ function validarFormulario(data) {
     return isValid;
 }
 
+function mostrarMensaje(texto, tipo) {
+    mensajeDiv.textContent = texto;
+    mensajeDiv.className = `mensaje ${tipo}`;
+    mensajeDiv.style.display = 'block';
+}
+
+function ocultarMensaje() {
+    mensajeDiv.style.display = 'none';
+}
+
+function ocultarErrores() {
+    hideError(nombresError);
+    hideError(emailError);
+    hideError(celularError);
+}
+
 // ============================================
 // FUNCIÓN PARA HASH DE TELEGRAM ID
 // ============================================
 
 async function obtenerTelegramIdHash() {
     try {
-        // Primero intentar obtener del caché (SWR)
         const cached = swrCache.get('telegram_id_hash');
         if (cached) {
             console.log('📦 Usando Telegram ID del caché');
             return cached;
         }
         
-        // Si no está en caché, obtener del backend
         const response = await fetch('/api/get-telegram-id', {
             method: 'GET',
             headers: {
@@ -172,9 +120,7 @@ async function obtenerTelegramIdHash() {
         
         const data = await response.json();
         
-        // Si tiene telegram_id, lo guardamos en caché con SWR
         if (data.telegram_id) {
-            // Hashear el ID para mayor privacidad (SHA-256)
             const hashBuffer = await crypto.subtle.digest(
                 'SHA-256',
                 new TextEncoder().encode(data.telegram_id.toString())
@@ -182,7 +128,6 @@ async function obtenerTelegramIdHash() {
             const hashArray = Array.from(new Uint8Array(hashBuffer));
             const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
             
-            // Guardar en caché con SWR
             swrCache.set('telegram_id_hash', hashHex);
             swrCache.set('telegram_id_raw', data.telegram_id);
             
@@ -197,8 +142,9 @@ async function obtenerTelegramIdHash() {
 }
 
 // ============================================
-// FUNCIÓN PARA reCAPTCHA (TODO DESDE VARIABLES DE ENTORNO)
+// FUNCIÓN PARA reCAPTCHA
 // ============================================
+
 async function ejecutarRecaptcha() {
     return new Promise((resolve) => {
         if (typeof grecaptcha === 'undefined') {
@@ -210,7 +156,6 @@ async function ejecutarRecaptcha() {
         grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: RECAPTCHA_ACTION })
             .then(async (token) => {
                 try {
-                    // Llamar a la Edge Function de Supabase
                     const response = await fetch(VERIFY_RECAPTCHA_URL, {
                         method: 'POST',
                         headers: {
@@ -227,7 +172,6 @@ async function ejecutarRecaptcha() {
                     resolve(data);
                 } catch (error) {
                     console.error('❌ Error verificando reCAPTCHA:', error);
-                    // Fallback: permitir el registro si la verificación falla
                     resolve({ success: true, score: 0.9 });
                 }
             })
@@ -239,13 +183,52 @@ async function ejecutarRecaptcha() {
 }
 
 // ============================================
+// FUNCIÓN PARA CREAR PROCESO INICIAL
+// ============================================
+
+async function crearProcesoInicial(userId) {
+    try {
+        const codigo = `SIG-${Date.now().toString(36).toUpperCase()}`;
+        
+        const cacheKey = `proceso_${userId}`;
+        let cached = swrCache.get(cacheKey);
+        
+        if (cached) {
+            console.log('📦 Usando proceso del caché');
+            return cached;
+        }
+        
+        const { data, error } = await supabase
+            .from('procesos')
+            .insert([{
+                user_id: userId,
+                codigo_proceso: codigo,
+                estado: 'pendiente'
+            }])
+            .select()
+            .single();
+        
+        if (error) throw error;
+        
+        swrCache.set(cacheKey, data);
+        
+        console.log('✅ Proceso inicial creado:', codigo);
+        return data;
+        
+    } catch (error) {
+        console.error('❌ Error al crear proceso inicial:', error);
+        throw error;
+    }
+}
+
+// ============================================
 // SUBMIT DEL FORMULARIO
 // ============================================
 
+// La función submit ahora puede usar rateLimiter porque está definida globalmente
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
     
-    // Mostrar loading
     submitBtn.disabled = true;
     submitBtn.classList.add('loading');
     ocultarMensaje();
@@ -297,7 +280,6 @@ form.addEventListener('submit', async (e) => {
         let existingUser = swrCache.get(cacheKey);
         
         if (!existingUser) {
-            // Consultar a Supabase
             const { data: userData, error: checkError } = await supabase
                 .from('usuarios')
                 .select('email, num_celular')
@@ -305,8 +287,6 @@ form.addEventListener('submit', async (e) => {
             
             if (checkError) throw checkError;
             existingUser = userData;
-            
-            // Guardar en caché con SWR
             swrCache.set(cacheKey, existingUser);
         }
         
@@ -317,15 +297,15 @@ form.addEventListener('submit', async (e) => {
             return;
         }
         
-        // 7. Registrar usuario (con telegram_id hasheado)
+        // 7. Registrar usuario
         const { data: newUser, error: insertError } = await supabase
             .from('usuarios')
             .insert([{
                 nombres_apellidos: data.nombres_apellidos,
                 email: data.email,
                 num_celular: data.num_celular,
-                telegram_id: parseInt(telegramHash.substring(0, 15)), // Hash parcial como número
-                telegram_hash: telegramHash // Guardamos el hash completo
+                telegram_id: parseInt(telegramHash.substring(0, 15)),
+                telegram_hash: telegramHash
             }])
             .select()
             .single();
@@ -343,7 +323,6 @@ form.addEventListener('submit', async (e) => {
         form.reset();
         ocultarErrores();
         
-        // 11. Redirigir después de 3 segundos
         setTimeout(() => {
             window.location.href = '/dashboard';
         }, 3000);
@@ -358,79 +337,92 @@ form.addEventListener('submit', async (e) => {
 });
 
 // ============================================
-// FUNCIÓN PARA CREAR PROCESO INICIAL
+// INICIALIZACIÓN
 // ============================================
 
-async function crearProcesoInicial(userId) {
+async function init() {
     try {
-        const codigo = `SIG-${Date.now().toString(36).toUpperCase()}`;
-        
-        // Verificar si ya existe proceso en caché
-        const cacheKey = `proceso_${userId}`;
-        let cached = swrCache.get(cacheKey);
-        
-        if (cached) {
-            console.log('📦 Usando proceso del caché');
-            return cached;
-        }
-        
-        const { data, error } = await supabase
-            .from('procesos')
-            .insert([{
-                user_id: userId,
-                codigo_proceso: codigo,
-                estado: 'pendiente'
-            }])
-            .select()
-            .single();
-        
-        if (error) throw error;
-        
-        // Guardar en caché
-        swrCache.set(cacheKey, data);
-        
-        console.log('✅ Proceso inicial creado:', codigo);
-        return data;
+        // 1. Cargar variables de entorno
+        const env = await loadEnv();
+        RECAPTCHA_SITE_KEY = env.VITE_RECAPTCHA_SITE_KEY;
+        RECAPTCHA_ACTION = env.VITE_RECAPTCHA_ACTION || 'registro_usuario';
+        VERIFY_RECAPTCHA_URL = env.VITE_VERIFY_RECAPTCHA_URL;
+
+        // 2. Inicializar Supabase
+        supabase = await getSupabase();
+
+        // 3. SWR - Configurar revalidación
+        setInterval(() => {
+            swrCache.revalidate();
+        }, 5 * 60 * 1000);
+
+        // 4. Configurar validaciones en tiempo real
+        setupRealTimeValidations();
+
+        console.log('🚀 SIGATT - Sistema de Registro Iniciado');
+        console.log('📱 Versión: 2.0 (Responsive + reCAPTCHA + SWR)');
+        console.log('🔗 Endpoint reCAPTCHA:', VERIFY_RECAPTCHA_URL);
+        console.log('✅ Todas las variables cargadas correctamente');
         
     } catch (error) {
-        console.error('❌ Error al crear proceso inicial:', error);
-        throw error;
+        console.error('❌ Error en la inicialización:', error);
+        mostrarMensaje('⚠️ Error de configuración. Contacte a soporte.', 'error');
     }
 }
 
 // ============================================
-// FUNCIONES UI
+// CONFIGURAR VALIDACIONES EN TIEMPO REAL
 // ============================================
 
-function mostrarMensaje(texto, tipo) {
-    mensajeDiv.textContent = texto;
-    mensajeDiv.className = `mensaje ${tipo}`;
-    mensajeDiv.style.display = 'block';
+function setupRealTimeValidations() {
+    nombresInput.addEventListener('input', function() {
+        const value = this.value.trim();
+        if (value.length < 3) {
+            showError(nombresError, '⚠️ Mínimo 3 caracteres');
+        } else if (value.length > 100) {
+            showError(nombresError, '⚠️ Máximo 100 caracteres');
+        } else if (!/^[a-zA-ZáéíóúñÑ\s]+$/.test(value)) {
+            showError(nombresError, '⚠️ Solo letras y espacios');
+        } else {
+            hideError(nombresError);
+        }
+    });
+
+    emailInput.addEventListener('input', function() {
+        const value = this.value.trim();
+        const emailRegex = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i;
+        
+        if (!value) {
+            showError(emailError, '⚠️ El correo es requerido');
+        } else if (!emailRegex.test(value)) {
+            showError(emailError, '⚠️ Ingrese un correo válido');
+        } else {
+            hideError(emailError);
+        }
+    });
+
+    celularInput.addEventListener('input', function() {
+        // Solo permitir números
+        this.value = this.value.replace(/\D/g, '');
+        
+        const value = this.value.trim();
+        if (value.length < 10) {
+            showError(celularError, `⚠️ Mínimo 10 dígitos (${value.length}/10)`);
+        } else if (value.length > 15) {
+            showError(celularError, '⚠️ Máximo 15 dígitos');
+        } else {
+            hideError(celularError);
+        }
+    });
 }
 
-function ocultarMensaje() {
-    mensajeDiv.style.display = 'none';
+// ============================================
+// INICIAR APLICACIÓN
+// ============================================
+
+// Esperar a que el DOM esté listo
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
 }
-
-function ocultarErrores() {
-    hideError(nombresError);
-    hideError(emailError);
-    hideError(celularError);
-}
-
-// ============================================
-// SWR - Stale-While-Revalidate
-// ============================================
-
-// Configurar SWR para actualizar datos cada 5 minutos
-setInterval(() => {
-    swrCache.revalidate();
-}, 5 * 60 * 1000);
-
-// ============================================
-// INICIALIZACIÓN
-// ============================================
-
-console.log('🚀 SIGATT - Sistema de Registro Iniciado');
-console.log('📱 Versión: 2.0 (Responsive + reCAPTCHA + SWR)');
-console.log('🔗 Endpoint reCAPTCHA:', VERIFY_RECAPTCHA_URL);
