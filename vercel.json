@@ -1,0 +1,19 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/env",
+      "destination": "/api/env.js"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        }
+      ]
+    }
+  ]
+}
