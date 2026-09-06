@@ -1,5 +1,5 @@
 // js/main.js - Con flujo de token y aprobación manual
-import { supabase } from './supabase-config.js';
+import { getSupabase } from './supabase-config.js';
 import { rateLimit } from './rate-limit.js';
 import { swrCache } from './swr-cache.js';
 import { loadEnv } from './config-loader.js';
@@ -422,7 +422,7 @@ async function getClientIP() {
 // ============================================
 async function init() {
     try {
-        // 1. Cargar variables de entorno
+        // 1. Cargar variables de entorno (esto crea window.ENV)
         const env = await loadEnv();
         RECAPTCHA_SITE_KEY = env.VITE_RECAPTCHA_SITE_KEY;
         RECAPTCHA_ACTION = env.VITE_RECAPTCHA_ACTION || 'registro_usuario';
@@ -437,8 +437,8 @@ async function init() {
             return;
         }
 
-        // 2. Inicializar Supabase
-        supabaseClient = supabase;
+        // 2. Inicializar Supabase DESPUÉS de que window.ENV exista
+        supabaseClient = getSupabase();
 
         // 3. Obtener token de la URL
         const token = getTokenFromURL();
