@@ -1,21 +1,23 @@
-// js/main.js - CORREGIDO
-
-import { getSupabase } from './supabase-config.js';
+// js/main.js - Con flujo de token seguro
+import { supabase } from './supabase-config.js';
 import { rateLimit } from './rate-limit.js';
 import { swrCache } from './swr-cache.js';
 import { loadEnv } from './config-loader.js';
 
 // ============================================
-// CONFIGURACIÓN GLOBAL
+// CONFIGURACIÓN
 // ============================================
-
-let supabase;
+let supabaseClient;
 let RECAPTCHA_SITE_KEY;
 let RECAPTCHA_ACTION;
 let VERIFY_RECAPTCHA_URL;
-let GET_TELEGRAM_ID_URL;  // ✅ NUEVA VARIABLE
+let VALIDAR_TOKEN_URL;
 
-// Inicializar rate limiting (se puede hacer ahora mismo)
+// Token y telegram_id obtenidos del backend
+let telegramId = null;
+let tokenValido = false;
+
+// Rate limiting
 const rateLimiter = rateLimit({
     maxRequests: 5,
     windowMs: 60000
@@ -24,134 +26,73 @@ const rateLimiter = rateLimit({
 // ============================================
 // DOM ELEMENTS
 // ============================================
-
 const form = document.getElementById('registroForm');
 const mensajeDiv = document.getElementById('mensaje');
+const statusMessage = document.getElementById('statusMessage');
 const submitBtn = document.getElementById('submitBtn');
 
-// Inputs
 const nombresInput = document.getElementById('nombres');
 const emailInput = document.getElementById('email');
 const celularInput = document.getElementById('celular');
 
-// Error messages
 const nombresError = document.getElementById('nombresError');
 const emailError = document.getElementById('emailError');
 const celularError = document.getElementById('celularError');
 
 // ============================================
-// FUNCIONES DE VALIDACIÓN Y UI (sin cambios)
+// FUNCIÓN PARA OBTENER EL TOKEN DE LA URL
 // ============================================
-
-function showError(element, message) {
-    element.textContent = message;
-    element.classList.add('visible');
-    element.closest('.form-group').querySelector('input').classList.add('error-shake');
-    setTimeout(() => {
-        element.closest('.form-group').querySelector('input').classList.remove('error-shake');
-    }, 300);
-}
-
-function hideError(element) {
-    element.classList.remove('visible');
-    element.textContent = '';
-}
-
-function validarFormulario(data) {
-    let isValid = true;
-    
-    if (data.nombres_apellidos.length < 3) {
-        showError(nombresError, '⚠️ Ingrese nombres y apellidos completos');
-        isValid = false;
-    }
-    
-    const emailRegex = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i;
-    if (!emailRegex.test(data.email)) {
-        showError(emailError, '⚠️ Ingrese un correo electrónico válido');
-        isValid = false;
-    }
-    
-    const celularRegex = /^[0-9]{10,15}$/;
-    if (!celularRegex.test(data.num_celular)) {
-        showError(celularError, '⚠️ Ingrese mínimo 10 dígitos numéricos');
-        isValid = false;
-    }
-    
-    return isValid;
-}
-
-function mostrarMensaje(texto, tipo) {
-    mensajeDiv.textContent = texto;
-    mensajeDiv.className = `mensaje ${tipo}`;
-    mensajeDiv.style.display = 'block';
-}
-
-function ocultarMensaje() {
-    mensajeDiv.style.display = 'none';
-}
-
-function ocultarErrores() {
-    hideError(nombresError);
-    hideError(emailError);
-    hideError(celularError);
+function getTokenFromURL() {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('token');
 }
 
 // ============================================
-// FUNCIÓN PARA HASH DE TELEGRAM ID (ACTUALIZADA)
+// FUNCIÓN PARA VALIDAR EL TOKEN
 // ============================================
-
-async function obtenerTelegramIdHash() {
+async function validarToken(token) {
     try {
-        const cached = swrCache.get('telegram_id_hash');
-        if (cached) {
-            console.log('📦 Usando Telegram ID del caché');
-            return cached;
-        }
+        console.log('🔍 Validando token...');
         
-        // ✅ USAR LA VARIABLE DE ENTORNO, NO HARDCODEAR
-        const response = await fetch(GET_TELEGRAM_ID_URL, {
-            method: 'GET',
+        const response = await fetch(VALIDAR_TOKEN_URL, {
+            method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
-            }
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ token }),
         });
-        
+
         if (!response.ok) {
             if (response.status === 404) {
-                throw new Error('Endpoint get-telegram-id no encontrado. Verifica que la Edge Function esté desplegada.');
+                throw new Error('Endpoint de validación no encontrado. Verifica que la Edge Function esté desplegada.');
             }
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            const errorData = await response.json();
+            throw new Error(errorData.message || `HTTP ${response.status}`);
         }
-        
+
         const data = await response.json();
         
-        if (data.telegram_id) {
-            const hashBuffer = await crypto.subtle.digest(
-                'SHA-256',
-                new TextEncoder().encode(data.telegram_id.toString())
-            );
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-            
-            swrCache.set('telegram_id_hash', hashHex);
-            swrCache.set('telegram_id_raw', data.telegram_id);
-            
-            return hashHex;
+        if (!data.success) {
+            throw new Error(data.message || 'Token inválido o expirado');
         }
+
+        // Guardar el telegram_id
+        telegramId = data.telegram_id;
+        tokenValido = true;
         
-        console.warn('⚠️ Usuario no vinculado con Telegram');
-        return null;
-        
+        console.log('✅ Token válido. Telegram ID:', telegramId);
+        return true;
+
     } catch (error) {
-        console.error('❌ Error al obtener Telegram ID:', error);
-        return null;
+        console.error('❌ Error validando token:', error);
+        mostrarStatus(`⚠️ ${error.message}`, 'error');
+        return false;
     }
 }
 
 // ============================================
 // FUNCIÓN PARA reCAPTCHA
 // ============================================
-
 async function ejecutarRecaptcha() {
     return new Promise((resolve) => {
         if (typeof grecaptcha === 'undefined') {
@@ -172,7 +113,7 @@ async function ejecutarRecaptcha() {
                     });
                     
                     if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        throw new Error(`HTTP ${response.status}`);
                     }
                     
                     const data = await response.json();
@@ -182,208 +123,15 @@ async function ejecutarRecaptcha() {
                     resolve({ success: true, score: 0.9 });
                 }
             })
-            .catch((error) => {
-                console.error('❌ Error en grecaptcha.execute:', error);
+            .catch(() => {
                 resolve({ success: true, score: 0.9 });
             });
     });
 }
 
 // ============================================
-// FUNCIÓN PARA CREAR PROCESO INICIAL
+// VALIDACIONES EN TIEMPO REAL
 // ============================================
-
-async function crearProcesoInicial(userId) {
-    try {
-        const codigo = `SIG-${Date.now().toString(36).toUpperCase()}`;
-        
-        const cacheKey = `proceso_${userId}`;
-        let cached = swrCache.get(cacheKey);
-        
-        if (cached) {
-            console.log('📦 Usando proceso del caché');
-            return cached;
-        }
-        
-        const { data, error } = await supabase
-            .from('procesos')
-            .insert([{
-                user_id: userId,
-                codigo_proceso: codigo,
-                estado: 'pendiente'
-            }])
-            .select()
-            .single();
-        
-        if (error) throw error;
-        
-        swrCache.set(cacheKey, data);
-        
-        console.log('✅ Proceso inicial creado:', codigo);
-        return data;
-        
-    } catch (error) {
-        console.error('❌ Error al crear proceso inicial:', error);
-        throw error;
-    }
-}
-
-// ============================================
-// SUBMIT DEL FORMULARIO
-// ============================================
-
-// La función submit ahora puede usar rateLimiter porque está definida globalmente
-form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    submitBtn.disabled = true;
-    submitBtn.classList.add('loading');
-    ocultarMensaje();
-    
-    try {
-        // 1. Rate limiting
-        if (!rateLimiter.check()) {
-            mostrarMensaje('⏳ Demasiados intentos. Espere un momento.', 'error');
-            submitBtn.disabled = false;
-            submitBtn.classList.remove('loading');
-            return;
-        }
-        
-        // 2. Obtener datos del formulario
-        const formData = new FormData(form);
-        const data = {
-            nombres_apellidos: formData.get('nombres').trim(),
-            email: formData.get('email').trim().toLowerCase(),
-            num_celular: formData.get('celular').trim()
-        };
-        
-        // 3. Validar datos
-        if (!validarFormulario(data)) {
-            submitBtn.disabled = false;
-            submitBtn.classList.remove('loading');
-            return;
-        }
-        
-        // 4. Ejecutar reCAPTCHA
-        const recaptchaResult = await ejecutarRecaptcha();
-        if (!recaptchaResult.success || recaptchaResult.score < 0.5) {
-            mostrarMensaje('🔒 Verificación de seguridad fallida. Intente nuevamente.', 'error');
-            submitBtn.disabled = false;
-            submitBtn.classList.remove('loading');
-            return;
-        }
-        
-        // 5. Obtener Telegram ID (con hash)
-        const telegramHash = await obtenerTelegramIdHash();
-        if (!telegramHash) {
-            mostrarMensaje('⚠️ No se pudo verificar su ID de Telegram. Contacte a soporte.', 'error');
-            submitBtn.disabled = false;
-            submitBtn.classList.remove('loading');
-            return;
-        }
-        
-        // 6. Buscar usuario por email en caché (SWR)
-        const cacheKey = `usuario_${data.email}`;
-        let existingUser = swrCache.get(cacheKey);
-        
-        if (!existingUser) {
-            const { data: userData, error: checkError } = await supabase
-                .from('usuarios')
-                .select('email, num_celular')
-                .eq('email', data.email);
-            
-            if (checkError) throw checkError;
-            existingUser = userData;
-            swrCache.set(cacheKey, existingUser);
-        }
-        
-        if (existingUser && existingUser.length > 0) {
-            mostrarMensaje('⚠️ El correo electrónico ya está registrado.', 'error');
-            submitBtn.disabled = false;
-            submitBtn.classList.remove('loading');
-            return;
-        }
-        
-        // 7. Registrar usuario
-        const { data: newUser, error: insertError } = await supabase
-            .from('usuarios')
-            .insert([{
-                nombres_apellidos: data.nombres_apellidos,
-                email: data.email,
-                num_celular: data.num_celular,
-                telegram_id: parseInt(telegramHash.substring(0, 15)),
-                telegram_hash: telegramHash
-            }])
-            .select()
-            .single();
-        
-        if (insertError) throw insertError;
-        
-        // 8. Crear proceso inicial
-        await crearProcesoInicial(newUser.user_id);
-        
-        // 9. Limpiar caché
-        swrCache.invalidate(cacheKey);
-        
-        // 10. Éxito
-        mostrarMensaje('✅ ¡Registro exitoso! Revisa tu correo para confirmar.', 'exito');
-        form.reset();
-        ocultarErrores();
-        
-        setTimeout(() => {
-            window.location.href = '/dashboard';
-        }, 3000);
-        
-    } catch (error) {
-        console.error('❌ Error:', error);
-        mostrarMensaje('❌ Error al registrar: ' + error.message, 'error');
-    } finally {
-        submitBtn.disabled = false;
-        submitBtn.classList.remove('loading');
-    }
-});
-
-// ============================================
-// INICIALIZACIÓN (ACTUALIZADA)
-// ============================================
-
-async function init() {
-    try {
-        const env = await loadEnv();
-        RECAPTCHA_SITE_KEY = env.VITE_RECAPTCHA_SITE_KEY;
-        RECAPTCHA_ACTION = env.VITE_RECAPTCHA_ACTION || 'registro_usuario';
-        VERIFY_RECAPTCHA_URL = env.VITE_VERIFY_RECAPTCHA_URL;
-        GET_TELEGRAM_ID_URL = env.VITE_GET_TELEGRAM_ID_URL;  // ✅ NUEVA
-
-        // Validar que la nueva variable existe
-        if (!GET_TELEGRAM_ID_URL) {
-            console.warn('⚠️ VITE_GET_TELEGRAM_ID_URL no configurada. El registro fallará al obtener Telegram ID.');
-        }
-
-        supabase = await getSupabase();
-
-        setInterval(() => {
-            swrCache.revalidate();
-        }, 5 * 60 * 1000);
-
-        setupRealTimeValidations();
-
-        console.log('🚀 SIGATT - Sistema de Registro Iniciado');
-        console.log('📱 Versión: 2.0 (Responsive + reCAPTCHA + SWR)');
-        console.log('🔗 Endpoint reCAPTCHA:', VERIFY_RECAPTCHA_URL);
-        console.log('🔗 Endpoint Telegram ID:', GET_TELEGRAM_ID_URL);
-        console.log('✅ Todas las variables cargadas correctamente');
-        
-    } catch (error) {
-        console.error('❌ Error en la inicialización:', error);
-        mostrarMensaje('⚠️ Error de configuración. Contacte a soporte.', 'error');
-    }
-}
-
-// ============================================
-// CONFIGURAR VALIDACIONES EN TIEMPO REAL
-// ============================================
-
 function setupRealTimeValidations() {
     nombresInput.addEventListener('input', function() {
         const value = this.value.trim();
@@ -412,7 +160,6 @@ function setupRealTimeValidations() {
     });
 
     celularInput.addEventListener('input', function() {
-        // Solo permitir números
         this.value = this.value.replace(/\D/g, '');
         
         const value = this.value.trim();
@@ -427,10 +174,275 @@ function setupRealTimeValidations() {
 }
 
 // ============================================
+// FUNCIONES UI
+// ============================================
+function showError(element, message) {
+    element.textContent = message;
+    element.classList.add('visible');
+    element.closest('.form-group').querySelector('input').classList.add('error-shake');
+    setTimeout(() => {
+        element.closest('.form-group').querySelector('input').classList.remove('error-shake');
+    }, 300);
+}
+
+function hideError(element) {
+    element.classList.remove('visible');
+    element.textContent = '';
+}
+
+function mostrarMensaje(texto, tipo) {
+    mensajeDiv.textContent = texto;
+    mensajeDiv.className = `mensaje ${tipo}`;
+    mensajeDiv.style.display = 'block';
+}
+
+function mostrarStatus(texto, tipo = 'info') {
+    if (statusMessage) {
+        statusMessage.textContent = texto;
+        statusMessage.className = `mensaje ${tipo}`;
+        statusMessage.style.display = 'block';
+    }
+}
+
+function ocultarMensaje() {
+    mensajeDiv.style.display = 'none';
+}
+
+function ocultarStatus() {
+    if (statusMessage) {
+        statusMessage.style.display = 'none';
+    }
+}
+
+function validarFormulario(data) {
+    let isValid = true;
+    
+    if (data.nombres_apellidos.length < 3) {
+        showError(nombresError, '⚠️ Ingrese nombres y apellidos completos');
+        isValid = false;
+    }
+    
+    const emailRegex = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i;
+    if (!emailRegex.test(data.email)) {
+        showError(emailError, '⚠️ Ingrese un correo electrónico válido');
+        isValid = false;
+    }
+    
+    const celularRegex = /^[0-9]{10,15}$/;
+    if (!celularRegex.test(data.num_celular)) {
+        showError(celularError, '⚠️ Ingrese mínimo 10 dígitos numéricos');
+        isValid = false;
+    }
+    
+    return isValid;
+}
+
+// ============================================
+// SUBMIT DEL FORMULARIO
+// ============================================
+form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    submitBtn.disabled = true;
+    submitBtn.classList.add('loading');
+    ocultarMensaje();
+    
+    try {
+        // 1. Rate limiting
+        if (!rateLimiter.check()) {
+            mostrarMensaje('⏳ Demasiados intentos. Espere un momento.', 'error');
+            submitBtn.disabled = false;
+            submitBtn.classList.remove('loading');
+            return;
+        }
+        
+        // 2. Verificar que el token sea válido
+        if (!tokenValido || !telegramId) {
+            mostrarMensaje('⚠️ Sesión inválida. Por favor, inicia el registro desde el bot de Telegram.', 'error');
+            submitBtn.disabled = false;
+            submitBtn.classList.remove('loading');
+            return;
+        }
+        
+        // 3. Obtener datos del formulario
+        const formData = new FormData(form);
+        const data = {
+            nombres_apellidos: formData.get('nombres').trim(),
+            email: formData.get('email').trim().toLowerCase(),
+            num_celular: formData.get('celular').trim(),
+            telegram_id: telegramId  // ✅ Se envía de forma invisible
+        };
+        
+        // 4. Validar datos
+        if (!validarFormulario(data)) {
+            submitBtn.disabled = false;
+            submitBtn.classList.remove('loading');
+            return;
+        }
+        
+        // 5. Ejecutar reCAPTCHA
+        const recaptchaResult = await ejecutarRecaptcha();
+        if (!recaptchaResult.success || recaptchaResult.score < 0.5) {
+            mostrarMensaje('🔒 Verificación de seguridad fallida. Intente nuevamente.', 'error');
+            submitBtn.disabled = false;
+            submitBtn.classList.remove('loading');
+            return;
+        }
+        
+        // 6. Verificar email duplicado
+        const { data: existingUser, error: checkError } = await supabaseClient
+            .from('usuarios')
+            .select('email')
+            .eq('email', data.email);
+        
+        if (checkError) throw checkError;
+        
+        if (existingUser && existingUser.length > 0) {
+            mostrarMensaje('⚠️ El correo electrónico ya está registrado.', 'error');
+            submitBtn.disabled = false;
+            submitBtn.classList.remove('loading');
+            return;
+        }
+        
+        // 7. Registrar usuario
+        const { data: newUser, error: insertError } = await supabaseClient
+            .from('usuarios')
+            .insert([data])
+            .select()
+            .single();
+        
+        if (insertError) throw insertError;
+        
+        // 8. Crear proceso inicial
+        await crearProcesoInicial(newUser.user_id);
+        
+        // 9. Marcar el token como usado (opcional)
+        await marcarTokenUsado();
+        
+        // 10. Éxito
+        mostrarMensaje('✅ ¡Registro exitoso! Revisa tu correo para confirmar.', 'exito');
+        form.reset();
+        
+        setTimeout(() => {
+            window.location.href = '/dashboard';
+        }, 3000);
+        
+    } catch (error) {
+        console.error('❌ Error:', error);
+        mostrarMensaje('❌ Error al registrar: ' + error.message, 'error');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('loading');
+    }
+});
+
+// ============================================
+// FUNCIÓN PARA CREAR PROCESO INICIAL
+// ============================================
+async function crearProcesoInicial(userId) {
+    try {
+        const codigo = `SIG-${Date.now().toString(36).toUpperCase()}`;
+        
+        const { data, error } = await supabaseClient
+            .from('procesos')
+            .insert([{
+                user_id: userId,
+                codigo_proceso: codigo,
+                estado: 'pendiente'
+            }])
+            .select()
+            .single();
+        
+        if (error) throw error;
+        
+        console.log('✅ Proceso inicial creado:', codigo);
+        return data;
+        
+    } catch (error) {
+        console.error('❌ Error al crear proceso inicial:', error);
+        throw error;
+    }
+}
+
+// ============================================
+// FUNCIÓN PARA MARCAR TOKEN COMO USADO
+// ============================================
+async function marcarTokenUsado() {
+    try {
+        const token = getTokenFromURL();
+        if (!token) return;
+        
+        await supabaseClient
+            .from('usuarios_pendientes')
+            .update({ usado: true, usado_en: new Date().toISOString() })
+            .eq('token_temporal', token);
+            
+        console.log('✅ Token marcado como usado');
+    } catch (error) {
+        console.warn('⚠️ No se pudo marcar el token como usado:', error);
+    }
+}
+
+// ============================================
+// INICIALIZACIÓN
+// ============================================
+async function init() {
+    try {
+        // 1. Cargar variables de entorno
+        const env = await loadEnv();
+        RECAPTCHA_SITE_KEY = env.VITE_RECAPTCHA_SITE_KEY;
+        RECAPTCHA_ACTION = env.VITE_RECAPTCHA_ACTION || 'registro_usuario';
+        VERIFY_RECAPTCHA_URL = env.VITE_VERIFY_RECAPTCHA_URL;
+        VALIDAR_TOKEN_URL = env.VITE_VALIDAR_TOKEN_URL;
+
+        // Validar que la URL de validación existe
+        if (!VALIDAR_TOKEN_URL) {
+            console.warn('⚠️ VITE_VALIDAR_TOKEN_URL no configurada en Vercel');
+            mostrarStatus('⚠️ Error de configuración. Contacte a soporte.', 'error');
+            form.style.display = 'none';
+            return;
+        }
+
+        // 2. Inicializar Supabase
+        supabaseClient = supabase;
+
+        // 3. Obtener token de la URL
+        const token = getTokenFromURL();
+        
+        if (token) {
+            // 4. Validar el token
+            mostrarStatus('🔍 Verificando tu acceso...', 'info');
+            const valido = await validarToken(token);
+            
+            if (!valido) {
+                form.style.display = 'none';
+                return;
+            }
+
+            // 5. Token válido → Mostrar formulario
+            ocultarStatus();
+            form.style.display = 'grid';
+            setupRealTimeValidations();
+            
+            console.log('🚀 SIGATT - Registro Seguro Iniciado');
+            console.log('📱 Versión: 2.0 (Token Seguro + reCAPTCHA + SWR)');
+            console.log('✅ Token válido. Telegram ID:', telegramId);
+        } else {
+            // Sin token → Mostrar mensaje informativo
+            mostrarStatus('ℹ️ Para registrarte, inicia el proceso desde el bot de Telegram.', 'info');
+            form.style.display = 'none';
+        }
+        
+    } catch (error) {
+        console.error('❌ Error en la inicialización:', error);
+        mostrarStatus('⚠️ Error de configuración. Contacte a soporte.', 'error');
+        form.style.display = 'none';
+    }
+}
+
+// ============================================
 // INICIAR APLICACIÓN
 // ============================================
-
-// Esperar a que el DOM esté listo
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
 } else {
