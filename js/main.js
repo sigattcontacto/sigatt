@@ -4,29 +4,23 @@ import { rateLimit } from './rate-limit.js';
 import { swrCache } from './swr-cache.js';
 
 // ============================================
-// CONFIGURACIÓN (TODO DESDE VARIABLES DE ENTORNO)
+// CONFIGURACIÓN (TODO DESDE window.ENV)
 // ============================================
 
-const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
-const RECAPTCHA_ACTION = import.meta.env.VITE_RECAPTCHA_ACTION;
-const VERIFY_RECAPTCHA_URL = import.meta.env.VITE_VERIFY_RECAPTCHA_URL;
+const RECAPTCHA_SITE_KEY = window.ENV?.VITE_RECAPTCHA_SITE_KEY;
+const RECAPTCHA_ACTION = window.ENV?.VITE_RECAPTCHA_ACTION;
+const VERIFY_RECAPTCHA_URL = window.ENV?.VITE_VERIFY_RECAPTCHA_URL;
 
-// Validar que las variables de entorno estén configuradas
+// Validar que las variables existan
 if (!RECAPTCHA_SITE_KEY) {
-    console.error('❌ FALTA: VITE_RECAPTCHA_SITE_KEY no está configurada en Vercel');
+    console.error('❌ FALTA: VITE_RECAPTCHA_SITE_KEY en window.ENV');
 }
 if (!RECAPTCHA_ACTION) {
-    console.error('❌ FALTA: VITE_RECAPTCHA_ACTION no está configurada en Vercel');
+    console.error('❌ FALTA: VITE_RECAPTCHA_ACTION en window.ENV');
 }
 if (!VERIFY_RECAPTCHA_URL) {
-    console.error('❌ FALTA: VITE_VERIFY_RECAPTCHA_URL no está configurada en Vercel');
+    console.error('❌ FALTA: VITE_VERIFY_RECAPTCHA_URL en window.ENV');
 }
-
-// Inicializar rate limiting
-const rateLimiter = rateLimit({
-    maxRequests: 5,
-    windowMs: 60000
-});
 
 // ============================================
 // DOM ELEMENTS
