@@ -17,7 +17,7 @@ let VALIDAR_TOKEN_URL;
 let telegramId = null;
 let tokenValido = false;
 let datosPrecargados = {};
-let pendingId = null; // ID del registro en usuarios_pendientes
+let pendingId = null;
 
 // Rate limiting
 const rateLimiter = rateLimit({
@@ -76,12 +76,18 @@ async function validarToken(token) {
         const data = await response.json();
         
         if (!data.success) {
+            // Si es rechazado, mostrar el motivo
+            if (data.estado === 'rechazado') {
+                mostrarStatus(`⚠️ Tu solicitud fue rechazada. Motivo: ${data.motivo_rechazo || 'No especificado'}`, 'error');
+                formContainer.style.display = 'none';
+                return false;
+            }
             throw new Error(data.message || 'Token inválido o expirado');
         }
 
-        // Guardar el telegram_id, pending_id y los datos precargados
+        // ✅ ASIGNAR TODAS LAS VARIABLES
         telegramId = data.telegram_id;
-        pendingId = data.pending_id; // ID del registro en usuarios_pendientes
+        pendingId = data.pending_id;
         tokenValido = true;
         datosPrecargados = {
             nombres_apellidos: data.nombres_apellidos || '',
@@ -89,9 +95,9 @@ async function validarToken(token) {
             num_celular: data.num_celular || ''
         };
 
-        // Verificar estado del usuario
-        if (data.estado === 'rechazado') {
-            mostrarStatus(`⚠️ Tu solicitud fue rechazada. Motivo: ${data.motivo_rechazo || 'No especificado'}`, 'error');
+        // Verificar si el token expiró
+        if (data.expirado) {
+            mostrarStatus('⚠️ El enlace ha expirado. Solicita uno nuevo desde el bot de Telegram.', 'error');
             formContainer.style.display = 'none';
             return false;
         }
@@ -106,14 +112,8 @@ async function validarToken(token) {
             return false;
         }
 
-        // Verificar si el token expiró
-        if (data.expirado) {
-            mostrarStatus('⚠️ El enlace ha expirado. Solicita uno nuevo desde el bot de Telegram.', 'error');
-            formContainer.style.display = 'none';
-            return false;
-        }
-
         console.log('✅ Token válido. Telegram ID:', telegramId);
+        console.log('✅ pendingId:', pendingId);
         return true;
 
     } catch (error) {
@@ -339,12 +339,12 @@ form.addEventListener('submit', async (e) => {
             return;
         }
 
-        // 7. Verificar si el email ya está en pendientes (aprobado o pendiente con otro token)
+        // 7. Verificar si el email ya está en pendientes
         const { data: pendingCheck, error: pendingError } = await supabaseClient
             .from('usuarios_pendientes')
             .select('id, estado, email')
             .eq('email', data.email)
-            .neq('id', pendingId) // Excluir el registro actual
+            .neq('id', pendingId)
             .maybeSingle();
 
         if (pendingCheck) {
@@ -362,7 +362,7 @@ form.addEventListener('submit', async (e) => {
             }
         }
         
-        // 8. Actualizar el registro en usuarios_pendientes con los datos del formulario
+        // 8. Actualizar el registro en usuarios_pendientes
         const token = getTokenFromURL();
         const { error: updateError } = await supabaseClient
             .from('usuarios_pendientes')
@@ -389,7 +389,6 @@ form.addEventListener('submit', async (e) => {
         form.reset();
         formContainer.style.display = 'none';
         
-        // Opcional: redirigir después de 5 segundos
         setTimeout(() => {
             window.location.href = '/';
         }, 5000);
@@ -422,14 +421,13 @@ async function getClientIP() {
 // ============================================
 async function init() {
     try {
-        // 1. Cargar variables de entorno (esto crea window.ENV)
+        // 1. Cargar variables de entorno
         const env = await loadEnv();
         RECAPTCHA_SITE_KEY = env.VITE_RECAPTCHA_SITE_KEY;
         RECAPTCHA_ACTION = env.VITE_RECAPTCHA_ACTION || 'registro_usuario';
         VERIFY_RECAPTCHA_URL = env.VITE_VERIFY_RECAPTCHA_URL;
         VALIDAR_TOKEN_URL = env.VITE_VALIDAR_TOKEN_URL;
 
-        // Validar que la URL de validación existe
         if (!VALIDAR_TOKEN_URL) {
             console.warn('⚠️ VITE_VALIDAR_TOKEN_URL no configurada en Vercel');
             mostrarStatus('⚠️ Error de configuración. Contacte a soporte.', 'error');
@@ -437,14 +435,13 @@ async function init() {
             return;
         }
 
-        // 2. Inicializar Supabase DESPUÉS de que window.ENV exista
+        // 2. Inicializar Supabase
         supabaseClient = getSupabase();
 
         // 3. Obtener token de la URL
         const token = getTokenFromURL();
         
         if (token) {
-            // 4. Validar el token
             mostrarStatus('🔍 Verificando tu acceso...', 'info');
             const valido = await validarToken(token);
             
@@ -453,11 +450,9 @@ async function init() {
                 return;
             }
 
-            // 5. Token válido → Mostrar formulario y precargar datos
             ocultarStatus();
             formContainer.style.display = 'block';
             
-            // 6. Precargar datos si existen
             if (datosPrecargados.nombres_apellidos) {
                 nombresInput.value = datosPrecargados.nombres_apellidos;
             }
@@ -474,7 +469,6 @@ async function init() {
             console.log('📱 Versión: 2.0 (Token Seguro + Aprobación Manual)');
             console.log('✅ Token válido. Telegram ID:', telegramId);
         } else {
-            // Sin token → Mostrar mensaje informativo
             mostrarStatus('ℹ️ Para registrarte, inicia el proceso desde el bot de Telegram.', 'info');
             formContainer.style.display = 'none';
         }
