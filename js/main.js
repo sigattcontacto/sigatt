@@ -1,25 +1,40 @@
-// js/main.js - Con reCAPTCHA, SWR, Hash de Telegram y validaciones mejoradas
-import { supabase } from './supabase-config.js';
+import { getSupabase } from './supabase-config.js';
 import { rateLimit } from './rate-limit.js';
 import { swrCache } from './swr-cache.js';
+import { loadEnv } from './config-loader.js';
 
 // ============================================
-// CONFIGURACIÓN (TODO DESDE window.ENV)
+// CONFIGURACIÓN
 // ============================================
 
-const RECAPTCHA_SITE_KEY = window.ENV?.VITE_RECAPTCHA_SITE_KEY;
-const RECAPTCHA_ACTION = window.ENV?.VITE_RECAPTCHA_ACTION;
-const VERIFY_RECAPTCHA_URL = window.ENV?.VITE_VERIFY_RECAPTCHA_URL;
+let supabase;
+let RECAPTCHA_SITE_KEY;
+let RECAPTCHA_ACTION;
+let VERIFY_RECAPTCHA_URL;
 
-// Validar que las variables existan
-if (!RECAPTCHA_SITE_KEY) {
-    console.error('❌ FALTA: VITE_RECAPTCHA_SITE_KEY en window.ENV');
-}
-if (!RECAPTCHA_ACTION) {
-    console.error('❌ FALTA: VITE_RECAPTCHA_ACTION en window.ENV');
-}
-if (!VERIFY_RECAPTCHA_URL) {
-    console.error('❌ FALTA: VITE_VERIFY_RECAPTCHA_URL en window.ENV');
+// Inicializar todo
+async function init() {
+  try {
+    // 1. Cargar variables de entorno
+    const env = await loadEnv();
+    RECAPTCHA_SITE_KEY = env.VITE_RECAPTCHA_SITE_KEY;
+    RECAPTCHA_ACTION = env.VITE_RECAPTCHA_ACTION || 'registro_usuario';
+    VERIFY_RECAPTCHA_URL = env.VITE_VERIFY_RECAPTCHA_URL;
+
+    // 2. Inicializar Supabase
+    supabase = await getSupabase();
+
+    console.log('🚀 SIGATT - Sistema de Registro Iniciado');
+    console.log('📱 Versión: 2.0 (Responsive + reCAPTCHA + SWR)');
+    console.log('🔗 Endpoint reCAPTCHA:', VERIFY_RECAPTCHA_URL);
+
+    // 3. Configurar el formulario
+    setupForm();
+    
+  } catch (error) {
+    console.error('❌ Error en la inicialización:', error);
+    mostrarMensaje('⚠️ Error de configuración. Contacte a soporte.', 'error');
+  }
 }
 
 // ============================================
