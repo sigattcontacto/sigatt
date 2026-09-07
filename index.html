@@ -45,52 +45,54 @@
                 <h2 style="margin-bottom: var(--spacing-xs);">Registro de Usuario</h2>
                 <p class="text-secondary text-small" style="margin-bottom: var(--spacing-lg);">Complete sus datos para iniciar el proceso</p>
 
-                <!-- ===== MENSAJE DE ESTADO ===== -->
-                <div id="statusMessage" class="form-error" style="display: none;"></div>
+                <!-- ===== MENSAJE DE ESTADO (Validación de token) ===== -->
+                <div id="statusMessage" class="mensaje" style="display: none;"></div>
 
-                <!-- ===== FORMULARIO ===== -->
-                <form id="registroForm" novalidate>
-                    <!-- Nombres -->
-                    <div class="form-group">
-                        <label for="nombres" class="form-label">Nombres y Apellidos</label>
-                        <input type="text" id="nombres" name="nombres" class="form-input"
-                               placeholder="Ingrese sus nombres completos"
-                               required minlength="3" maxlength="100" autocomplete="name">
-                        <span class="form-error" id="nombresError"></span>
-                    </div>
+                <!-- ===== CONTENEDOR DEL FORMULARIO ===== -->
+                <div id="formContainer" style="display: block;">
+                    <form id="registroForm" class="registro-form" novalidate>
+                        <!-- Nombres -->
+                        <div class="form-group">
+                            <label for="nombres" class="form-label">Nombres y Apellidos</label>
+                            <input type="text" id="nombres" name="nombres" class="form-input"
+                                   placeholder="Ingrese sus nombres completos"
+                                   required minlength="3" maxlength="100" autocomplete="name">
+                            <span class="form-error" id="nombresError"></span>
+                        </div>
 
-                    <!-- Email -->
-                    <div class="form-group">
-                        <label for="email" class="form-label">Correo Electrónico</label>
-                        <input type="email" id="email" name="email" class="form-input"
-                               placeholder="ejemplo@correo.com"
-                               required autocomplete="email">
-                        <span class="form-error" id="emailError"></span>
-                    </div>
+                        <!-- Email -->
+                        <div class="form-group">
+                            <label for="email" class="form-label">Correo Electrónico</label>
+                            <input type="email" id="email" name="email" class="form-input"
+                                   placeholder="ejemplo@correo.com"
+                                   required autocomplete="email">
+                            <span class="form-error" id="emailError"></span>
+                        </div>
 
-                    <!-- Celular -->
-                    <div class="form-group">
-                        <label for="celular" class="form-label">Número de Contacto</label>
-                        <input type="tel" id="celular" name="celular" class="form-input"
-                               placeholder="3001234567"
-                               required autocomplete="tel" inputmode="numeric"
-                               maxlength="15">
-                        <span class="form-help">📱 Ingrese solo números (mínimo 10 dígitos)</span>
-                        <span class="form-error" id="celularError"></span>
-                    </div>
+                        <!-- Celular -->
+                        <div class="form-group">
+                            <label for="celular" class="form-label">Número de Contacto</label>
+                            <input type="tel" id="celular" name="celular" class="form-input"
+                                   placeholder="3001234567"
+                                   required autocomplete="tel" inputmode="numeric"
+                                   maxlength="15">
+                            <span class="form-help">📱 Ingrese solo números (mínimo 10 dígitos)</span>
+                            <span class="form-error" id="celularError"></span>
+                        </div>
 
-                    <!-- Botón -->
-                    <div class="form-actions">
-                        <button type="submit" class="btn btn-primary btn-block" id="submitBtn">
-                            Registrarse
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M5 12h14M12 5l7 7-7 7"/>
-                            </svg>
-                        </button>
-                    </div>
-                </form>
+                        <!-- Botón -->
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary btn-block" id="submitBtn">
+                                Registrarse
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </form>
+                </div>
 
-                <!-- Mensaje de éxito/error -->
+                <!-- ===== MENSAJE DE ÉXITO/ERROR ===== -->
                 <div id="mensaje" class="form-error" style="display: none; margin-top: var(--spacing-lg);"></div>
             </div>
         </div>
