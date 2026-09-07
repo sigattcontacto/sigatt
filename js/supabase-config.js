@@ -1,8 +1,8 @@
 // js/supabase-config.js
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-// ✅ USAR LA URL DEL PROYECTO, NO LA DE LA EDGE FUNCTION
-const supabaseUrl = window.ENV?.VITE_SUPABASE_URL;        // ← Debe ser: https://pfjaclsxhxtipjawymqb.supabase.co
+// ✅ USAR LA URL DEL PROYECTO
+const supabaseUrl = window.ENV?.VITE_SUPABASE_URL;
 const supabaseAnonKey = window.ENV?.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl) {
@@ -14,24 +14,25 @@ if (!supabaseAnonKey) {
 
 console.log('✅ Supabase configurado correctamente desde window.ENV');
 
-// ✅ CREAR CLIENTE CON LA URL CORRECTA
-export function getSupabaseClient() {
-    return createClient(supabaseUrl, supabaseAnonKey);
-}
-
-// Exportar una instancia perezosa (lazy)
+// ✅ CREAR CLIENTE ÚNICO
 let supabaseInstance = null;
 
 export function getSupabase() {
     if (!supabaseInstance) {
-        supabaseInstance = getSupabaseClient();
+        console.log('🔄 Creando cliente de Supabase...');
+        supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
+            auth: {
+                persistSession: true,
+                autoRefreshToken: true,
+                detectSessionInUrl: true
+            }
+        });
     }
     return supabaseInstance;
 }
 
-// Esto queda para compatibilidad, pero lanza un error si se usa antes de window.ENV
-export const supabase = new Proxy({}, {
-    get(target, prop) {
-        throw new Error('❌ No uses "supabase" directamente. Usa getSupabase() después de que window.ENV esté listo.');
-    }
-});
+// ✅ Exportar el cliente de forma directa (sin Proxy)
+// Esto es para compatibilidad con código que espera "supabase"
+export const supabase = getSupabase();
+
+// ⚠️ No usar Proxy que bloquee el acceso
