@@ -1,6 +1,5 @@
 // js/admin/auth.js
 import { getSupabase } from '../supabase-config.js';
-import { loadEnv } from '../config-loader.js';
 
 // ============================================
 // DOM ELEMENTS
@@ -19,12 +18,7 @@ export async function verificarSesion() {
         const supabase = getSupabase(); // ✅ Obtener cliente correctamente
         const { data: { session }, error } = await supabase.auth.getSession();
         
-        if (error) {
-            console.error('❌ Error verificando sesión:', error);
-            return null;
-        }
-
-        if (!session) {
+        if (error || !session) {
             console.log('ℹ️ No hay sesión activa');
             return null;
         }
@@ -32,17 +26,19 @@ export async function verificarSesion() {
         // Verificar que el usuario sea admin
         const { data: user, error: userError } = await supabase
             .from('usuarios')
-            .select('rol')
+            .select('rol, nombres_apellidos')
             .eq('user_id', session.user.id)
-            .single();
+            .maybeSingle(); // ✅ Usar maybeSingle para evitar errores si no existe
 
         if (userError || !user) {
             console.error('❌ Error verificando rol:', userError);
+            await supabase.auth.signOut();
             return null;
         }
 
         if (user.rol !== 'admin') {
             console.warn('⛔ Usuario no es admin');
+            await supabase.auth.signOut();
             return null;
         }
 
@@ -59,25 +55,21 @@ export async function verificarSesion() {
 // ============================================
 export async function iniciarSesion(email, password, rememberMe) {
     try {
-        const supabase = getSupabase(); // ✅ Obtener cliente correctamente
+        const supabase = getSupabase();
 
-        // 1. Validar email
         if (!email || !email.includes('@')) {
             return { success: false, error: 'Correo electrónico inválido' };
         }
 
-        // 2. Validar contraseña
         if (!password || password.length < 6) {
             return { success: false, error: 'La contraseña debe tener al menos 6 caracteres' };
         }
 
-        // 3. Iniciar sesión con Supabase
+        // Iniciar sesión
         const { data, error } = await supabase.auth.signInWithPassword({
             email: email.trim().toLowerCase(),
             password: password,
-            options: {
-                persistSession: rememberMe
-            }
+            options: { persistSession: rememberMe }
         });
 
         if (error) {
@@ -85,12 +77,12 @@ export async function iniciarSesion(email, password, rememberMe) {
             return { success: false, error: error.message };
         }
 
-        // 4. Verificar que el usuario sea admin
+        // Verificar rol
         const { data: user, error: userError } = await supabase
             .from('usuarios')
             .select('rol, nombres_apellidos')
             .eq('user_id', data.user.id)
-            .single();
+            .maybeSingle();
 
         if (userError || !user) {
             await supabase.auth.signOut();
@@ -119,7 +111,7 @@ export async function iniciarSesion(email, password, rememberMe) {
 // ============================================
 export async function cerrarSesion() {
     try {
-        const supabase = getSupabase(); // ✅ Obtener cliente correctamente
+        const supabase = getSupabase();
         const { error } = await supabase.auth.signOut();
         if (error) throw error;
         console.log('✅ Sesión cerrada correctamente');
@@ -131,32 +123,26 @@ export async function cerrarSesion() {
 }
 
 // ============================================
-// FUNCIÓN: REDIRIGIR SI NO ESTÁ AUTENTICADO
+// FUNCIÓN: PROTEGER RUTA
 // ============================================
 export async function protegerRuta() {
     const session = await verificarSesion();
-    
     if (!session) {
-        console.log('⛔ Redirigiendo a login');
         window.location.href = '/admin/login.html';
         return null;
     }
-
     return session;
 }
 
 // ============================================
-// EVENT: FORMULARIO DE LOGIN
+// EVENT: LOGIN FORM
 // ============================================
 if (loginForm) {
     loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         
-        // Limpiar errores
         loginError.style.display = 'none';
         loginError.textContent = '';
-        
-        // Deshabilitar botón
         loginBtn.disabled = true;
         loginBtn.textContent = 'Ingresando...';
 
@@ -168,7 +154,6 @@ if (loginForm) {
             const result = await iniciarSesion(email, password, rememberMe);
 
             if (result.success) {
-                // Redirigir al dashboard
                 window.location.href = '/admin/index.html';
             } else {
                 loginError.textContent = '❌ ' + result.error;
