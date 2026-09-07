@@ -1,5 +1,5 @@
 // js/admin/auth.js
-import { supabase } from '../supabase-config.js';
+import { getSupabase } from '../supabase-config.js';
 import { loadEnv } from '../config-loader.js';
 
 // ============================================
