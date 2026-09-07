@@ -91,6 +91,17 @@
     </footer>
 
     <!-- ===== SCRIPTS ===== -->
-    <script type="module" src="../js/admin/auth.js"></script>
+    <!-- 🔧 Cargar config-loader.js primero para que window.ENV exista -->
+    <script type="module">
+        import { loadEnv } from '../js/config-loader.js';
+        
+        // Cargar variables de entorno primero
+        await loadEnv();
+        
+        // Luego importar el script de autenticación
+        await import('../js/admin/auth.js');
+        
+        console.log('✅ Admin login inicializado');
+    </script>
 </body>
 </html>
