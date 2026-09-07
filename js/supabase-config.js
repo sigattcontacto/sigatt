@@ -22,9 +22,10 @@ export function getSupabase() {
         console.log('🔄 Creando cliente de Supabase...');
         supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
             auth: {
-                persistSession: true,
-                autoRefreshToken: true,
-                detectSessionInUrl: true
+                persistSession: true,          // ✅ Persistir sesión en localStorage
+                autoRefreshToken: true,        // ✅ Refrescar token automáticamente
+                detectSessionInUrl: true,      // ✅ Detectar sesión en la URL
+                storage: localStorage          // ✅ Usar localStorage para guardar la sesión
             }
         });
     }
