@@ -24,11 +24,17 @@ export async function verificarSesion() {
         }
 
         // Verificar que el usuario sea admin
-   const { data: user, error: userError } = await supabase
+  console.log('🔍 Consultando usuario con ID:', session.user.id);
+console.log('🔍 Tipo de ID:', typeof session.user.id);
+
+const { data: user, error: userError } = await supabase
     .from('usuarios')
     .select('rol, nombres_apellidos')
     .eq('user_id', session.user.id)
-    .maybeSingle();  // ✅ Usar maybeSingle en lugar de single
+    .maybeSingle();
+
+console.log('🔍 Resultado de la consulta:', user);
+console.log('🔍 Error de la consulta:', userError);
 
         if (userError || !user) {
             console.error('❌ Error verificando rol:', userError);
