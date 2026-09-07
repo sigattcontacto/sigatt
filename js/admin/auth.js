@@ -30,7 +30,7 @@ console.log('🔍 Tipo de ID:', typeof session.user.id);
 const { data: user, error: userError } = await supabase
     .from('usuarios')
     .select('rol, nombres_apellidos')
-    .eq('user_id', session.user.id)
+    .eq('email', session.user.email)  // ✅ Usar email en lugar de user_id
     .maybeSingle();
 
 console.log('🔍 Resultado de la consulta:', user);
