@@ -139,6 +139,17 @@
     </div>
 
     <!-- ===== SCRIPTS ===== -->
-    <script type="module" src="../js/admin/dashboard.js"></script>
+    <!-- 🔧 Cargar config-loader.js primero para que window.ENV exista -->
+    <script type="module">
+        import { loadEnv } from '../js/config-loader.js';
+        
+        // Cargar variables de entorno primero
+        await loadEnv();
+        
+        // Luego importar el script del dashboard
+        await import('../js/admin/dashboard.js');
+        
+        console.log('✅ Admin dashboard inicializado');
+    </script>
 </body>
 </html>
