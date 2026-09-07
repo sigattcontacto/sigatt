@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+    <title>SIGATT - Dashboard Administrativo</title>
+
+    <!-- ===== CSS ===== -->
+    <link rel="stylesheet" href="../css/variables.css">
+    <link rel="stylesheet" href="../css/reset.css">
+    <link rel="stylesheet" href="../css/typography.css">
+    <link rel="stylesheet" href="../css/layout.css">
+    <link rel="stylesheet" href="../css/forms.css">
+    <link rel="stylesheet" href="../css/buttons.css">
+    <link rel="stylesheet" href="../css/dashboard.css">
+    <link rel="stylesheet" href="../css/responsive.css">
+
+    <!-- ===== Favicon ===== -->
+    <link rel="icon" type="image/png" href="../images/LOGO-SIGATT.png">
+</head>
+<body>
+
+    <!-- ===== HEADER ===== -->
+    <header class="site-header">
+        <div class="container header-inner">
+            <a href="/" class="logo-link">
+                <img src="../images/LOGO-SIGATT.png" alt="SIGATT" class="logo-image">
+                <div class="logo-text">
+                    <span class="logo-title">SIGATT</span>
+                    <span class="logo-subtitle">Panel de Administración</span>
+                </div>
+            </a>
+            <div style="display: flex; align-items: center; gap: var(--spacing-md);">
+                <span class="text-small text-secondary" id="userName">Admin</span>
+                <button id="logoutBtn" class="btn btn-sm btn-secondary">Cerrar sesión</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- ===== MAIN ===== -->
+    <main style="padding: var(--spacing-xl) 0;">
+        <div class="container">
+
+            <!-- ===== TÍTULO ===== -->
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--spacing-md); margin-bottom: var(--spacing-xl);">
+                <div>
+                    <h1>Dashboard</h1>
+                    <p class="text-secondary text-small">Gestión de solicitudes de registro</p>
+                </div>
+                <button id="refreshBtn" class="btn btn-secondary btn-sm">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: var(--spacing-xs);">
+                        <polyline points="23 4 23 10 17 10"/>
+                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                    </svg>
+                    Actualizar
+                </button>
+            </div>
+
+            <!-- ===== ESTADÍSTICAS ===== -->
+            <div class="dashboard-stats" id="statsContainer">
+                <div class="stat-card">
+                    <span class="stat-label">Pendientes</span>
+                    <span class="stat-value" id="pendingCount">0</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Aprobados</span>
+                    <span class="stat-value" id="approvedCount">0</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Rechazados</span>
+                    <span class="stat-value" id="rejectedCount">0</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Total Usuarios</span>
+                    <span class="stat-value" id="totalUsers">0</span>
+                </div>
+            </div>
+
+            <!-- ===== TABLA DE SOLICITUDES ===== -->
+            <div class="dashboard-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--spacing-md); margin-bottom: var(--spacing-md);">
+                    <h3>Solicitudes Pendientes</h3>
+                    <div style="display: flex; gap: var(--spacing-sm); flex-wrap: wrap;">
+                        <input type="text" id="searchInput" class="form-input" placeholder="Buscar por nombre o email..." style="height: 36px; width: 250px; max-width: 100%;">
+                    </div>
+                </div>
+
+                <!-- Tabla -->
+                <div style="overflow-x: auto;">
+                    <table class="dashboard-table">
+                        <thead>
+                            <tr>
+                                <th>Nombre</th>
+                                <th>Email</th>
+                                <th>Teléfono</th>
+                                <th>Fecha</th>
+                                <th style="text-align: center;">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="solicitudesTableBody">
+                            <tr>
+                                <td colspan="5" style="text-align: center; padding: var(--spacing-xl); color: var(--sigatt-text-secondary);">
+                                    <p>Cargando solicitudes...</p>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Paginación -->
+                <div id="paginationContainer" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--spacing-md); margin-top: var(--spacing-md);">
+                    <span class="text-small text-secondary" id="paginationInfo">Mostrando 0 - 0 de 0</span>
+                    <div style="display: flex; gap: var(--spacing-xs);">
+                        <button id="prevPage" class="btn btn-secondary btn-sm" disabled>Anterior</button>
+                        <button id="nextPage" class="btn btn-secondary btn-sm" disabled>Siguiente</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- ===== FOOTER ===== -->
+    <footer class="site-footer">
+        <div class="container">
+            <p class="footer-text">&copy; 2026 SIGATT - Panel de Administración</p>
+        </div>
+    </footer>
+
+    <!-- ===== MODAL DE CONFIRMACIÓN ===== -->
+    <div id="confirmModal" style="display: none; position: fixed; inset: 0; background: rgba(7, 43, 87, 0.5); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center; padding: var(--spacing-md);">
+        <div style="background: var(--sigatt-white); border-radius: var(--radius-xl); padding: var(--spacing-xl); max-width: 480px; width: 100%; box-shadow: var(--shadow-lg);">
+            <h3 id="modalTitle" style="margin-bottom: var(--spacing-sm);">Confirmar acción</h3>
+            <p id="modalMessage" class="text-secondary" style="margin-bottom: var(--spacing-lg);">¿Estás seguro de realizar esta acción?</p>
+            <div style="display: flex; gap: var(--spacing-sm); justify-content: flex-end; flex-wrap: wrap;">
+                <button id="modalCancelBtn" class="btn btn-secondary">Cancelar</button>
+                <button id="modalConfirmBtn" class="btn btn-success">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== SCRIPTS ===== -->
+    <script type="module" src="../js/admin/dashboard.js"></script>
+</body>
+</html>
