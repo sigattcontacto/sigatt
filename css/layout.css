@@ -1,0 +1,118 @@
+/* ============================================
+   LAYOUT Y CONTENEDORES
+   ============================================ */
+
+/* ===== CONTENEDOR PRINCIPAL ===== */
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 var(--spacing-md);
+    width: 100%;
+}
+
+/* ===== CONTENEDOR DE FORMULARIO ===== */
+.form-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: calc(100vh - 200px);
+    padding: var(--spacing-xl) var(--spacing-md);
+}
+
+.form-card {
+    background: var(--sigatt-white);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--sigatt-border);
+    padding: var(--spacing-2xl);
+    max-width: 560px;
+    width: 100%;
+    transition: box-shadow var(--transition-normal);
+}
+
+.form-card:hover {
+    box-shadow: var(--shadow-lg);
+}
+
+/* ===== HEADER ===== */
+.site-header {
+    background: var(--sigatt-white);
+    border-bottom: 1px solid var(--sigatt-border);
+    padding: var(--spacing-md) 0;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(8px);
+    background: rgba(255, 255, 255, 0.95);
+}
+
+.header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+}
+
+.logo-link {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    text-decoration: none;
+}
+
+.logo-image {
+    height: 50px;
+    width: auto;
+}
+
+.logo-text {
+    display: flex;
+    flex-direction: column;
+}
+
+.logo-title {
+    font-size: clamp(1.2rem, 2.5vw, 1.6rem);
+    font-weight: var(--font-weight-extrabold);
+    color: var(--sigatt-navy);
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+}
+
+.logo-subtitle {
+    font-size: clamp(0.6rem, 1vw, 0.75rem);
+    font-weight: var(--font-weight-regular);
+    color: var(--sigatt-text-secondary);
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+/* ===== FOOTER ===== */
+.site-footer {
+    background: var(--sigatt-white);
+    border-top: 1px solid var(--sigatt-border);
+    padding: var(--spacing-md) 0;
+    text-align: center;
+    margin-top: auto;
+}
+
+.footer-text {
+    font-size: 0.75rem;
+    color: var(--sigatt-text-secondary);
+}
+
+/* ===== LÍNEA CORPORATIVA ===== */
+.corporate-line {
+    height: 3px;
+    width: 100%;
+    background: linear-gradient(90deg, var(--sigatt-navy) 0%, var(--sigatt-blue) 30%, var(--sigatt-cyan) 60%, var(--sigatt-green) 100%);
+    border-radius: 2px;
+    margin: var(--spacing-md) 0;
+}
+
+.corporate-line-sm {
+    height: 2px;
+    width: 80px;
+    background: linear-gradient(90deg, var(--sigatt-navy), var(--sigatt-cyan));
+    border-radius: 2px;
+    margin: var(--spacing-md) 0;
+}
