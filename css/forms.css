@@ -1,0 +1,114 @@
+/* ============================================
+   FORMULARIOS, INPUTS Y VALIDACIONES
+   ============================================ */
+
+/* ===== FORMULARIO ===== */
+.form-group {
+    margin-bottom: var(--spacing-lg);
+}
+
+.form-label {
+    display: block;
+    font-weight: var(--font-weight-medium);
+    color: var(--sigatt-text);
+    font-size: 0.875rem;
+    margin-bottom: var(--spacing-xs);
+}
+
+.form-input {
+    width: 100%;
+    height: var(--input-height);
+    padding: 0 var(--spacing-md);
+    border: 1.5px solid var(--sigatt-border);
+    border-radius: var(--input-border-radius);
+    background: var(--sigatt-white);
+    color: var(--sigatt-text);
+    font-size: 1rem;
+    font-weight: var(--font-weight-regular);
+    transition: all var(--transition-fast);
+    outline: none;
+}
+
+.form-input::placeholder {
+    color: #94A3B8;
+    font-weight: var(--font-weight-regular);
+}
+
+/* ===== FOCUS ===== */
+.form-input:focus {
+    border-color: var(--input-focus-border);
+    box-shadow: var(--input-focus-shadow);
+}
+
+/* ===== VALIDACIÓN: CORRECTO ===== */
+.form-input.is-valid {
+    border-color: var(--sigatt-success);
+    background: var(--sigatt-light-green);
+    padding-right: 40px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%23219446' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6L9 17l-5-5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 20px;
+}
+
+.form-input.is-valid:focus {
+    border-color: var(--sigatt-success);
+    box-shadow: 0 0 0 3px rgba(33, 148, 70, 0.12);
+}
+
+/* ===== VALIDACIÓN: ERROR ===== */
+.form-input.is-invalid {
+    border-color: var(--sigatt-danger);
+    background: #FEF2F2;
+    padding-right: 40px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%23C62828' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cline x1='12' y1='8' x2='12' y2='12'/%3E%3Cline x1='12' y1='16' x2='12.01' y2='16'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 20px;
+}
+
+.form-input.is-invalid:focus {
+    border-color: var(--sigatt-danger);
+    box-shadow: 0 0 0 3px rgba(198, 40, 40, 0.12);
+}
+
+/* ===== MENSAJES DE VALIDACIÓN ===== */
+.form-error {
+    display: none;
+    color: var(--sigatt-danger);
+    font-size: 0.75rem;
+    font-weight: var(--font-weight-medium);
+    margin-top: var(--spacing-xs);
+}
+
+.form-error.visible {
+    display: block;
+}
+
+.form-success {
+    display: none;
+    color: var(--sigatt-success);
+    font-size: 0.75rem;
+    font-weight: var(--font-weight-medium);
+    margin-top: var(--spacing-xs);
+}
+
+.form-success.visible {
+    display: block;
+}
+
+/* ===== HELP TEXT ===== */
+.form-help {
+    color: var(--sigatt-text-secondary);
+    font-size: 0.75rem;
+    margin-top: var(--spacing-xs);
+}
+
+.form-help .icon {
+    margin-right: var(--spacing-xs);
+}
+
+/* ===== FORM ACTIONS ===== */
+.form-actions {
+    margin-top: var(--spacing-xl);
+}
