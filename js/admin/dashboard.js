@@ -213,11 +213,13 @@ window.rechazarSolicitud = function(id, nombre) {
 // ============================================
 // FUNCIÓN: EJECUTAR ACCIÓN DEL MODAL
 // ============================================
+// dashboard.js - Sección de ejecutarAccion
 async function ejecutarAccion() {
     if (!modalAction || !modalData) return;
 
     const { id, nombre } = modalData;
-    const url = `${window.ENV?.VITE_VERIFY_RECAPTCHA_URL?.replace('/verify-recaptcha', '')}/functions/v1/aprobar-usuario`;
+    // ✅ URL CORRECTA
+    const url = `${window.ENV?.VITE_SUPABASE_URL}/functions/v1/aprobar-usuario`;
 
     try {
         modalConfirmBtn.disabled = true;
