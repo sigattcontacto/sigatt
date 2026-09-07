@@ -16,6 +16,7 @@ const loginBtn = document.getElementById('loginBtn');
 // ============================================
 export async function verificarSesion() {
     try {
+        const supabase = getSupabase(); // ✅ Obtener cliente correctamente
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
@@ -58,6 +59,8 @@ export async function verificarSesion() {
 // ============================================
 export async function iniciarSesion(email, password, rememberMe) {
     try {
+        const supabase = getSupabase(); // ✅ Obtener cliente correctamente
+
         // 1. Validar email
         if (!email || !email.includes('@')) {
             return { success: false, error: 'Correo electrónico inválido' };
@@ -116,6 +119,7 @@ export async function iniciarSesion(email, password, rememberMe) {
 // ============================================
 export async function cerrarSesion() {
     try {
+        const supabase = getSupabase(); // ✅ Obtener cliente correctamente
         const { error } = await supabase.auth.signOut();
         if (error) throw error;
         console.log('✅ Sesión cerrada correctamente');
