@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+    <title>SIGATT - Acceso Administrativo</title>
+
+    <!-- ===== CSS ===== -->
+    <link rel="stylesheet" href="../css/variables.css">
+    <link rel="stylesheet" href="../css/reset.css">
+    <link rel="stylesheet" href="../css/typography.css">
+    <link rel="stylesheet" href="../css/layout.css">
+    <link rel="stylesheet" href="../css/forms.css">
+    <link rel="stylesheet" href="../css/buttons.css">
+    <link rel="stylesheet" href="../css/responsive.css">
+
+    <!-- ===== Favicon ===== -->
+    <link rel="icon" type="image/png" href="../images/LOGO-SIGATT.png">
+</head>
+<body>
+
+    <!-- ===== HEADER ===== -->
+    <header class="site-header">
+        <div class="container header-inner">
+            <a href="/" class="logo-link">
+                <img src="../images/LOGO-SIGATT.png" alt="SIGATT" class="logo-image">
+                <div class="logo-text">
+                    <span class="logo-title">SIGATT</span>
+                    <span class="logo-subtitle">Panel de Administración</span>
+                </div>
+            </a>
+        </div>
+    </header>
+
+    <!-- ===== MAIN ===== -->
+    <main>
+        <div class="form-wrapper">
+            <div class="form-card">
+                <div class="corporate-line-sm"></div>
+
+                <h2 style="margin-bottom: var(--spacing-xs);">Acceso Administrativo</h2>
+                <p class="text-secondary text-small" style="margin-bottom: var(--spacing-lg);">Ingrese sus credenciales para acceder al panel</p>
+
+                <!-- ===== MENSAJE DE ERROR ===== -->
+                <div id="loginError" class="form-error" style="display: none;"></div>
+
+                <!-- ===== FORMULARIO DE LOGIN ===== -->
+                <form id="loginForm" novalidate>
+                    <div class="form-group">
+                        <label for="email" class="form-label">Correo Electrónico</label>
+                        <input type="email" id="email" name="email" class="form-input"
+                               placeholder="admin@sigatt.com" required autocomplete="email">
+                        <span class="form-error" id="emailError"></span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password" class="form-label">Contraseña</label>
+                        <input type="password" id="password" name="password" class="form-input"
+                               placeholder="••••••••" required autocomplete="current-password">
+                        <span class="form-error" id="passwordError"></span>
+                    </div>
+
+                    <!-- Recordar sesión -->
+                    <div class="form-group" style="display: flex; align-items: center; gap: var(--spacing-sm); margin-bottom: var(--spacing-lg);">
+                        <input type="checkbox" id="rememberMe" name="rememberMe" checked style="width: 18px; height: 18px; accent-color: var(--sigatt-blue);">
+                        <label for="rememberMe" class="text-small" style="margin: 0; font-weight: var(--font-weight-regular); color: var(--sigatt-text-secondary);">
+                            Mantener sesión iniciada
+                        </label>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary btn-block" id="loginBtn">
+                            Ingresar
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+                                <polyline points="10 17 15 12 10 7"/>
+                                <line x1="15" y1="12" x2="3" y2="12"/>
+                            </svg>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <!-- ===== FOOTER ===== -->
+    <footer class="site-footer">
+        <div class="container">
+            <p class="footer-text">&copy; 2026 SIGATT - Panel de Administración</p>
+        </div>
+    </footer>
+
+    <!-- ===== SCRIPTS ===== -->
+    <script type="module" src="../js/admin/auth.js"></script>
+</body>
+</html>
