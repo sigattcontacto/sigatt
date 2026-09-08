@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
-    <title>SIGATT - Dashboard Administrativo</title>
+    <title>SIGATT - Panel de Administración</title>
 
-    <!-- ===== CSS ===== -->
     <link rel="stylesheet" href="../css/variables.css">
     <link rel="stylesheet" href="../css/reset.css">
     <link rel="stylesheet" href="../css/typography.css">
@@ -15,7 +14,6 @@
     <link rel="stylesheet" href="../css/dashboard.css">
     <link rel="stylesheet" href="../css/responsive.css">
 
-    <!-- ===== Favicon ===== -->
     <link rel="icon" type="image/png" href="../images/LOGO-SIGATT.png">
 </head>
 <body>
@@ -41,78 +39,107 @@
     <main style="padding: var(--spacing-xl) 0;">
         <div class="container">
 
-            <!-- ===== TÍTULO ===== -->
-            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--spacing-md); margin-bottom: var(--spacing-xl);">
-                <div>
-                    <h1>Dashboard</h1>
-                    <p class="text-secondary text-small">Gestión de solicitudes de registro</p>
-                </div>
-                <button id="refreshBtn" class="btn btn-secondary btn-sm">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: var(--spacing-xs);">
-                        <polyline points="23 4 23 10 17 10"/>
-                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
-                    </svg>
-                    Actualizar
-                </button>
-            </div>
+            <!-- ===== MENSAJE DE ESTADO ===== -->
+            <div id="statusMessage" class="mensaje" style="display: none;"></div>
 
-            <!-- ===== ESTADÍSTICAS ===== -->
-            <div class="dashboard-stats" id="statsContainer">
-                <div class="stat-card">
-                    <span class="stat-label">Pendientes</span>
-                    <span class="stat-value" id="pendingCount">0</span>
-                </div>
-                <div class="stat-card">
-                    <span class="stat-label">Aprobados</span>
-                    <span class="stat-value" id="approvedCount">0</span>
-                </div>
-                <div class="stat-card">
-                    <span class="stat-label">Rechazados</span>
-                    <span class="stat-value" id="rejectedCount">0</span>
-                </div>
-                <div class="stat-card">
-                    <span class="stat-label">Total Usuarios</span>
-                    <span class="stat-value" id="totalUsers">0</span>
-                </div>
-            </div>
+            <!-- ===== CONTENIDO ===== -->
+            <div id="dashboardContent">
 
-            <!-- ===== TABLA DE SOLICITUDES ===== -->
-            <div class="dashboard-card">
-                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--spacing-md); margin-bottom: var(--spacing-md);">
-                    <h3>Solicitudes Pendientes</h3>
+                <!-- ===== TÍTULO Y ACCIONES ===== -->
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--spacing-md); margin-bottom: var(--spacing-xl);">
+                    <div>
+                        <h1>Gestión de Procesos</h1>
+                        <p class="text-secondary text-small">Administra todos los procesos y documentos</p>
+                    </div>
                     <div style="display: flex; gap: var(--spacing-sm); flex-wrap: wrap;">
-                        <input type="text" id="searchInput" class="form-input" placeholder="Buscar por nombre o email..." style="height: 36px; width: 250px; max-width: 100%;">
+                        <button id="nuevoProcesoBtn" class="btn btn-primary">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: var(--spacing-xs);">
+                                <line x1="12" y1="5" x2="12" y2="19"/>
+                                <line x1="5" y1="12" x2="19" y2="12"/>
+                            </svg>
+                            Nuevo Proceso
+                        </button>
+                        <button id="refreshBtn" class="btn btn-secondary btn-sm">Actualizar</button>
                     </div>
                 </div>
 
-                <!-- Tabla -->
-                <div style="overflow-x: auto;">
-                    <table class="dashboard-table">
-                        <thead>
-                            <tr>
-                                <th>Nombre</th>
-                                <th>Email</th>
-                                <th>Teléfono</th>
-                                <th>Fecha</th>
-                                <th style="text-align: center;">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody id="solicitudesTableBody">
-                            <tr>
-                                <td colspan="5" style="text-align: center; padding: var(--spacing-xl); color: var(--sigatt-text-secondary);">
-                                    <p>Cargando solicitudes...</p>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <!-- ===== ESTADÍSTICAS ===== -->
+                <div class="dashboard-stats" id="statsContainer">
+                    <div class="stat-card">
+                        <span class="stat-label">Total Procesos</span>
+                        <span class="stat-value" id="totalProcesos">0</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Activos</span>
+                        <span class="stat-value" id="activos">0</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Completados</span>
+                        <span class="stat-value" id="completados">0</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Documentos</span>
+                        <span class="stat-value" id="totalDocumentos">0</span>
+                    </div>
                 </div>
 
-                <!-- Paginación -->
-                <div id="paginationContainer" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--spacing-md); margin-top: var(--spacing-md);">
-                    <span class="text-small text-secondary" id="paginationInfo">Mostrando 0 - 0 de 0</span>
-                    <div style="display: flex; gap: var(--spacing-xs);">
-                        <button id="prevPage" class="btn btn-secondary btn-sm" disabled>Anterior</button>
-                        <button id="nextPage" class="btn btn-secondary btn-sm" disabled>Siguiente</button>
+                <!-- ===== FILTROS Y BÚSQUEDA ===== -->
+                <div class="dashboard-card" style="margin-bottom: var(--spacing-md);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--spacing-md);">
+                        <div style="display: flex; gap: var(--spacing-sm); flex-wrap: wrap;">
+                            <select id="filtroEstado" class="form-input" style="height: 40px; width: 150px; max-width: 100%;">
+                                <option value="todos">Todos los estados</option>
+                                <option value="pendiente">⏳ Pendiente</option>
+                                <option value="en_revision">🔍 En Revisión</option>
+                                <option value="activo">🔄 Activo</option>
+                                <option value="completado">✅ Completado</option>
+                                <option value="archivado">📦 Archivado</option>
+                            </select>
+                            <select id="filtroPrioridad" class="form-input" style="height: 40px; width: 150px; max-width: 100%;">
+                                <option value="todas">Todas las prioridades</option>
+                                <option value="baja">🟢 Baja</option>
+                                <option value="normal">🔵 Normal</option>
+                                <option value="alta">🟠 Alta</option>
+                                <option value="urgente">🔴 Urgente</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; gap: var(--spacing-sm); flex-wrap: wrap;">
+                            <input type="text" id="searchInput" class="form-input" placeholder="Buscar por código o usuario..." style="height: 40px; width: 250px; max-width: 100%;">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ===== TABLA DE PROCESOS ===== -->
+                <div class="dashboard-card">
+                    <div style="overflow-x: auto;">
+                        <table class="dashboard-table">
+                            <thead>
+                                <tr>
+                                    <th>Código</th>
+                                    <th>Usuario</th>
+                                    <th>Estado</th>
+                                    <th>Prioridad</th>
+                                    <th>Fecha</th>
+                                    <th style="text-align: center;">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="procesosTableBody">
+                                <tr>
+                                    <td colspan="6" style="text-align: center; padding: var(--spacing-xl); color: var(--sigatt-text-secondary);">
+                                        <p>Cargando procesos...</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- ===== PAGINACIÓN ===== -->
+                    <div id="paginationContainer" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--spacing-md); margin-top: var(--spacing-md);">
+                        <span class="text-small text-secondary" id="paginationInfo">Mostrando 0 - 0 de 0</span>
+                        <div style="display: flex; gap: var(--spacing-xs);">
+                            <button id="prevPage" class="btn btn-secondary btn-sm" disabled>Anterior</button>
+                            <button id="nextPage" class="btn btn-secondary btn-sm" disabled>Siguiente</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -126,8 +153,105 @@
         </div>
     </footer>
 
+    <!-- ============================================================ -->
+    <!-- ===== PANEL LATERAL: NUEVO/EDITAR PROCESO ===== -->
+    <!-- ============================================================ -->
+    <div id="procesoPanel" style="position: fixed; top: 0; right: -100%; width: 100%; max-width: 600px; height: 100%; background: var(--sigatt-white); box-shadow: var(--shadow-lg); z-index: 2000; transition: right 0.3s ease; overflow-y: auto; padding: var(--spacing-xl);">
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-lg);">
+            <h3 id="procesoPanelTitulo">Nuevo Proceso</h3>
+            <button id="cerrarProcesoPanelBtn" style="background: none; border: none; font-size: 1.8rem; cursor: pointer; color: var(--sigatt-text-secondary);">&times;</button>
+        </div>
+
+        <form id="procesoForm">
+            <input type="hidden" id="procesoId" value="">
+
+            <!-- Usuario -->
+            <div class="form-group">
+                <label class="form-label">Usuario</label>
+                <select id="procesoUsuario" class="form-input" required>
+                    <option value="">Seleccionar usuario...</option>
+                </select>
+            </div>
+
+            <!-- Código -->
+            <div class="form-group">
+                <label class="form-label">Código del Proceso *</label>
+                <input type="text" id="procesoCodigo" class="form-input" placeholder="SIG-20260907-A1B2C3" required>
+            </div>
+
+            <!-- Prioridad -->
+            <div class="form-group">
+                <label class="form-label">Prioridad</label>
+                <select id="procesoPrioridad" class="form-input">
+                    <option value="baja">🟢 Baja</option>
+                    <option value="normal" selected>🔵 Normal</option>
+                    <option value="alta">🟠 Alta</option>
+                    <option value="urgente">🔴 Urgente</option>
+                </select>
+            </div>
+
+            <!-- Estado -->
+            <div class="form-group">
+                <label class="form-label">Estado</label>
+                <select id="procesoEstado" class="form-input">
+                    <option value="pendiente">⏳ Pendiente</option>
+                    <option value="en_revision">🔍 En Revisión</option>
+                    <option value="activo">🔄 Activo</option>
+                    <option value="completado">✅ Completado</option>
+                    <option value="archivado">📦 Archivado</option>
+                </select>
+            </div>
+
+            <!-- Fecha límite -->
+            <div class="form-group">
+                <label class="form-label">Fecha Límite</label>
+                <input type="date" id="procesoFechaLimite" class="form-input">
+            </div>
+
+            <!-- Descripción -->
+            <div class="form-group">
+                <label class="form-label">Descripción (visible para el usuario)</label>
+                <textarea id="procesoDescripcion" class="form-input" rows="3" placeholder="Descripción del proceso..." style="resize: vertical; min-height: 80px;"></textarea>
+            </div>
+
+            <!-- Notas internas -->
+            <div class="form-group">
+                <label class="form-label">Notas Internas (solo admin)</label>
+                <textarea id="procesoNotas" class="form-input" rows="2" placeholder="Notas privadas..." style="resize: vertical; min-height: 60px;"></textarea>
+            </div>
+
+            <!-- ===== SECCIÓN DE DOCUMENTOS ===== -->
+            <div style="margin-top: var(--spacing-xl); padding-top: var(--spacing-lg); border-top: 1px solid var(--sigatt-border);">
+                <h4 style="margin-bottom: var(--spacing-md);">📎 Documentos</h4>
+                
+                <!-- Dropzone -->
+                <div id="dropzone" style="border: 2px dashed var(--sigatt-border); border-radius: var(--radius-md); padding: var(--spacing-xl); text-align: center; cursor: pointer; transition: all var(--transition-fast);">
+                    <p style="margin: 0; color: var(--sigatt-text-secondary);">
+                        <span style="font-size: 2rem; display: block;">📤</span>
+                        Arrastra archivos aquí o haz clic para seleccionar
+                    </p>
+                    <input type="file" id="fileInput" multiple style="display: none;">
+                </div>
+
+                <!-- Lista de documentos -->
+                <div id="documentosLista" style="margin-top: var(--spacing-md);">
+                    <p class="text-secondary text-small">No hay documentos subidos.</p>
+                </div>
+            </div>
+
+            <!-- Botones -->
+            <div style="display: flex; gap: var(--spacing-sm); margin-top: var(--spacing-xl);">
+                <button type="submit" class="btn btn-primary" style="flex: 1;">Guardar Proceso</button>
+                <button type="button" id="cancelarProcesoBtn" class="btn btn-secondary">Cancelar</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- ============================================================ -->
     <!-- ===== MODAL DE CONFIRMACIÓN ===== -->
-    <div id="confirmModal" style="display: none; position: fixed; inset: 0; background: rgba(7, 43, 87, 0.5); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center; padding: var(--spacing-md);">
+    <!-- ============================================================ -->
+    <div id="confirmModal" style="display: none; position: fixed; inset: 0; background: rgba(7, 43, 87, 0.5); backdrop-filter: blur(4px); z-index: 3000; align-items: center; justify-content: center; padding: var(--spacing-md);">
         <div style="background: var(--sigatt-white); border-radius: var(--radius-xl); padding: var(--spacing-xl); max-width: 480px; width: 100%; box-shadow: var(--shadow-lg);">
             <h3 id="modalTitle" style="margin-bottom: var(--spacing-sm);">Confirmar acción</h3>
             <p id="modalMessage" class="text-secondary" style="margin-bottom: var(--spacing-lg);">¿Estás seguro de realizar esta acción?</p>
@@ -138,18 +262,13 @@
         </div>
     </div>
 
+    <!-- ============================================================ -->
     <!-- ===== SCRIPTS ===== -->
-    <!-- 🔧 Cargar config-loader.js primero para que window.ENV exista -->
+    <!-- ============================================================ -->
     <script type="module">
         import { loadEnv } from '../js/config-loader.js';
-        
-        // Cargar variables de entorno primero
         await loadEnv();
-        
-        // Luego importar el script del dashboard
         await import('../js/admin/dashboard.js');
-        
-        console.log('✅ Admin dashboard inicializado');
     </script>
 </body>
 </html>
