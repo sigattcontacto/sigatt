@@ -14,6 +14,7 @@ let usuarios = [];
 let documentos = {};
 let currentProcesoId = null;
 let archivosSeleccionados = [];
+let userNombres = {};
 
 // ============================================
 // DOM ELEMENTS
@@ -36,10 +37,11 @@ const prevPageBtn = document.getElementById('prevPage');
 const nextPageBtn = document.getElementById('nextPage');
 const paginationInfo = document.getElementById('paginationInfo');
 
-// ===== PROGRESS PANEL =====
+// ===== PROCESO PANEL =====
 const procesoPanel = document.getElementById('procesoPanel');
 const cerrarProcesoPanelBtn = document.getElementById('cerrarProcesoPanelBtn');
 const cancelarProcesoBtn = document.getElementById('cancelarProcesoBtn');
+const nuevoProcesoBtn = document.getElementById('nuevoProcesoBtn');
 const procesoPanelTitulo = document.getElementById('procesoPanelTitulo');
 const procesoForm = document.getElementById('procesoForm');
 const procesoId = document.getElementById('procesoId');
@@ -77,6 +79,12 @@ async function cargarUsuarios() {
 
         if (error) throw error;
         usuarios = data || [];
+
+        // Crear mapa de nombres para acceso rápido
+        userNombres = {};
+        usuarios.forEach(u => {
+            userNombres[u.user_id] = u.nombres_apellidos;
+        });
 
         // Llenar select de usuarios
         procesoUsuario.innerHTML = '<option value="">Seleccionar usuario...</option>';
@@ -145,7 +153,7 @@ async function contarDocumentos() {
 }
 
 // ============================================
-// FUNCIÓN: RENDERIZAR TABLA
+// FUNCIÓN: RENDERIZAR TABLA (CORREGIDA)
 // ============================================
 function renderTabla() {
     const searchTerm = searchInput?.value?.toLowerCase() || '';
@@ -184,6 +192,7 @@ function renderTabla() {
         return;
     }
 
+    // ✅ Usar userNombres en lugar de await dentro de la plantilla
     tableBody.innerHTML = pageData.map(p => {
         const estadoEmoji = p.estado === 'completado' ? '✅' : 
                            p.estado === 'activo' ? '🔄' : 
@@ -192,10 +201,12 @@ function renderTabla() {
         const estadoClass = p.estado === 'completado' ? 'status-aprobado' :
                            p.estado === 'activo' ? 'status-pendiente' : 'status-rechazado';
         
+        const nombreUsuario = p.user_id ? (userNombres[p.user_id] || 'Sin asignar') : 'Sin asignar';
+        
         return `
             <tr>
                 <td><strong>${p.codigo_proceso}</strong></td>
-                <td>${p.user_id ? await getUsuarioNombre(p.user_id) : 'Sin asignar'}</td>
+                <td>${nombreUsuario}</td>
                 <td><span class="status-badge ${estadoClass}">${estadoEmoji} ${p.estado || 'pendiente'}</span></td>
                 <td>${p.prioridad || 'normal'}</td>
                 <td>${p.created_at ? new Date(p.created_at).toLocaleDateString('es-ES') : 'N/A'}</td>
@@ -210,14 +221,6 @@ function renderTabla() {
             </tr>
         `;
     }).join('');
-}
-
-// ============================================
-// FUNCIÓN: OBTENER NOMBRE DE USUARIO
-// ============================================
-async function getUsuarioNombre(userId) {
-    const user = usuarios.find(u => u.user_id === userId);
-    return user ? user.nombres_apellidos : 'Sin asignar';
 }
 
 // ============================================
@@ -335,13 +338,11 @@ async function subirDocumentos(procesoId, files) {
         return;
     }
 
-    // Aquí iría la lógica para subir a Google Drive
-    // Por ahora, simulamos la subida
     for (const file of files) {
         const docData = {
             procesos_id: procesoId,
             name_documento: file.name,
-            documento: `https://drive.google.com/file/d/${file.name}`, // Simulado
+            documento: `https://drive.google.com/file/d/${file.name}`,
             tamanio_bytes: file.size,
             mime_type: file.type,
             extension: file.name.split('.').pop(),
@@ -450,7 +451,11 @@ modal.addEventListener('click', (e) => {
 // ============================================
 // EVENTO: NUEVO PROCESO
 // ============================================
-document.getElementById('nuevoProcesoBtn').addEventListener('click', abrirNuevoProceso);
+if (nuevoProcesoBtn) {
+    nuevoProcesoBtn.addEventListener('click', abrirNuevoProceso);
+} else {
+    console.warn('⚠️ Botón "Nuevo Proceso" no encontrado');
+}
 
 // ============================================
 // EVENTOS: CERRAR PANEL
@@ -459,82 +464,93 @@ function cerrarProcesoPanel() {
     procesoPanel.style.right = '-100%';
 }
 
-cerrarProcesoPanelBtn.addEventListener('click', cerrarProcesoPanel);
-cancelarProcesoBtn.addEventListener('click', cerrarProcesoPanel);
+if (cerrarProcesoPanelBtn) {
+    cerrarProcesoPanelBtn.addEventListener('click', cerrarProcesoPanel);
+}
+if (cancelarProcesoBtn) {
+    cancelarProcesoBtn.addEventListener('click', cerrarProcesoPanel);
+}
 
 // ============================================
 // EVENTO: DROPZONE
 // ============================================
-dropzone.addEventListener('click', () => fileInput.click());
-dropzone.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    dropzone.style.borderColor = 'var(--sigatt-blue)';
-    dropzone.style.background = 'var(--sigatt-light-blue)';
-});
-dropzone.addEventListener('dragleave', () => {
-    dropzone.style.borderColor = 'var(--sigatt-border)';
-    dropzone.style.background = 'transparent';
-});
-dropzone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    dropzone.style.borderColor = 'var(--sigatt-border)';
-    dropzone.style.background = 'transparent';
-    if (currentProcesoId) {
-        subirDocumentos(currentProcesoId, e.dataTransfer.files);
-    }
-});
-fileInput.addEventListener('change', (e) => {
-    if (currentProcesoId && e.target.files.length > 0) {
-        subirDocumentos(currentProcesoId, e.target.files);
-        fileInput.value = '';
-    }
-});
+if (dropzone) {
+    dropzone.addEventListener('click', () => fileInput?.click());
+    dropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropzone.style.borderColor = 'var(--sigatt-blue)';
+        dropzone.style.background = 'var(--sigatt-light-blue)';
+    });
+    dropzone.addEventListener('dragleave', () => {
+        dropzone.style.borderColor = 'var(--sigatt-border)';
+        dropzone.style.background = 'transparent';
+    });
+    dropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropzone.style.borderColor = 'var(--sigatt-border)';
+        dropzone.style.background = 'transparent';
+        if (currentProcesoId && e.dataTransfer.files.length > 0) {
+            subirDocumentos(currentProcesoId, e.dataTransfer.files);
+        }
+    });
+}
+
+if (fileInput) {
+    fileInput.addEventListener('change', (e) => {
+        if (currentProcesoId && e.target.files.length > 0) {
+            subirDocumentos(currentProcesoId, e.target.files);
+            fileInput.value = '';
+        }
+    });
+}
 
 // ============================================
 // EVENTO: GUARDAR PROCESO
 // ============================================
-procesoForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
+if (procesoForm) {
+    procesoForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
 
-    const data = {
-        user_id: procesoUsuario.value || null,
-        codigo_proceso: procesoCodigo.value.trim(),
-        prioridad: procesoPrioridad.value,
-        estado: procesoEstado.value,
-        fecha_limite: procesoFechaLimite.value || null,
-        descripcion: procesoDescripcion.value.trim(),
-        notas_internas: procesoNotas.value.trim()
-    };
+        const data = {
+            user_id: procesoUsuario.value || null,
+            codigo_proceso: procesoCodigo.value.trim(),
+            prioridad: procesoPrioridad.value,
+            estado: procesoEstado.value,
+            fecha_limite: procesoFechaLimite.value || null,
+            descripcion: procesoDescripcion.value.trim(),
+            notas_internas: procesoNotas.value.trim(),
+            creado_por: 'admin'
+        };
 
-    try {
-        if (procesoId.value) {
-            // Actualizar
-            const { error } = await supabase
-                .from('procesos')
-                .update(data)
-                .eq('procesos_id', procesoId.value);
+        try {
+            if (procesoId.value) {
+                // Actualizar
+                const { error } = await supabase
+                    .from('procesos')
+                    .update(data)
+                    .eq('procesos_id', procesoId.value);
 
-            if (error) throw error;
-            mostrarStatus('✅ Proceso actualizado correctamente', 'exito');
-        } else {
-            // Crear
-            data.creado_por = 'admin'; // Se reemplazará con el ID real
-            const { error } = await supabase
-                .from('procesos')
-                .insert([data]);
+                if (error) throw error;
+                mostrarStatus('✅ Proceso actualizado correctamente', 'exito');
+            } else {
+                // Crear
+                const { error } = await supabase
+                    .from('procesos')
+                    .insert([data]);
 
-            if (error) throw error;
-            mostrarStatus('✅ Proceso creado correctamente', 'exito');
+                if (error) throw error;
+                mostrarStatus('✅ Proceso creado correctamente', 'exito');
+            }
+
+            await cargarProcesos();
+            cerrarProcesoPanel();
+
+        } catch (error) {
+            console.error('❌ Error guardando proceso:', error);
+            mostrarStatus('❌ Error al guardar: ' + error.message, 'error');
         }
-
-        await cargarProcesos();
-        cerrarProcesoPanel();
-
-    } catch (error) {
-        console.error('❌ Error guardando proceso:', error);
-        mostrarStatus('❌ Error al guardar: ' + error.message, 'error');
-    }
-});
+    });
+}
 
 // ============================================
 // EVENTOS: REFRESCAR
@@ -600,12 +616,14 @@ nextPageBtn?.addEventListener('click', () => {
 // FUNCIONES UI
 // ============================================
 function mostrarStatus(texto, tipo = 'info') {
-    statusMessage.textContent = texto;
-    statusMessage.className = `mensaje ${tipo}`;
-    statusMessage.style.display = 'block';
-    setTimeout(() => {
-        statusMessage.style.display = 'none';
-    }, 5000);
+    if (statusMessage) {
+        statusMessage.textContent = texto;
+        statusMessage.className = `mensaje ${tipo}`;
+        statusMessage.style.display = 'block';
+        setTimeout(() => {
+            statusMessage.style.display = 'none';
+        }, 5000);
+    }
 }
 
 // ============================================
