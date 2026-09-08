@@ -167,7 +167,6 @@
         <div style="margin-bottom: var(--spacing-lg);">
             <p class="text-small" style="font-weight: var(--font-weight-medium); margin-bottom: var(--spacing-md);">📋 Historial de estados</p>
             <div id="detalleHistorial" style="position: relative; padding-left: 20px;">
-                <!-- Los items se generarán dinámicamente -->
                 <p class="text-secondary text-small">Cargando historial...</p>
             </div>
         </div>
@@ -195,6 +194,15 @@
     </div>
 
     <!-- ===== SCRIPTS ===== -->
-    <script type="module" src="../js/dashboard-user.js"></script>
+    <script type="module">
+        // 1️⃣ Primero cargar variables de entorno
+        import { loadEnv } from '../js/config-loader.js';
+        await loadEnv();
+        
+        // 2️⃣ Luego importar el script del dashboard
+        await import('../js/dashboard-user.js');
+        
+        console.log('✅ Dashboard de usuario inicializado');
+    </script>
 </body>
 </html>
