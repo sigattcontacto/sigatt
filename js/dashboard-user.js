@@ -12,6 +12,7 @@ let filteredProcesos = [];
 let supabase = null;
 let userId = null;
 let VALIDAR_TOKEN_URL = null;
+let allDocuments = [];
 
 // ============================================
 // DOM ELEMENTS
@@ -35,16 +36,16 @@ const prevPageBtn = document.getElementById('prevPage');
 const nextPageBtn = document.getElementById('nextPage');
 const paginationInfo = document.getElementById('paginationInfo');
 
-// Modal de detalle
-const procesoModal = document.getElementById('procesoModal');
-const modalCerrarBtn = document.getElementById('modalCerrarBtn');
-const modalTitulo = document.getElementById('modalTitulo');
-const modalCodigo = document.getElementById('modalCodigo');
-const modalEstado = document.getElementById('modalEstado');
-const modalPrioridad = document.getElementById('modalPrioridad');
-const modalFecha = document.getElementById('modalFecha');
-const modalDescripcion = document.getElementById('modalDescripcion');
-const modalDocumentos = document.getElementById('modalDocumentos');
+// Panel lateral de detalle
+const detallePanel = document.getElementById('detallePanel');
+const cerrarDetalleBtn = document.getElementById('cerrarDetalleBtn');
+const detalleCodigo = document.getElementById('detalleCodigo');
+const detalleEstado = document.getElementById('detalleEstado');
+const detallePrioridad = document.getElementById('detallePrioridad');
+const detalleFecha = document.getElementById('detalleFecha');
+const detalleDescripcion = document.getElementById('detalleDescripcion');
+const detalleHistorial = document.getElementById('detalleHistorial');
+const detalleDocumentos = document.getElementById('detalleDocumentos');
 
 // Modal de documento
 const documentoModal = document.getElementById('documentoModal');
@@ -82,7 +83,6 @@ async function validarToken(token) {
             throw new Error(data.message || 'Token inválido o expirado');
         }
 
-        // Verificar que el token esté asociado al usuario
         if (!data.telegram_id) {
             throw new Error('Token no asociado a un usuario válido');
         }
@@ -97,7 +97,7 @@ async function validarToken(token) {
 }
 
 // ============================================
-// FUNCIÓN: CARGAR DATOS DEL USUARIO
+// FUNCIÓN: CARGAR USUARIO
 // ============================================
 async function cargarUsuario(telegramId) {
     try {
@@ -148,7 +148,7 @@ async function cargarProcesos() {
         enProgreso.textContent = enProgresoCount;
         completados.textContent = completadosCount;
 
-        // Cargar documentos asociados
+        // Cargar documentos
         await cargarDocumentos();
 
         renderTabla();
@@ -164,11 +164,11 @@ async function cargarProcesos() {
 // ============================================
 async function cargarDocumentos() {
     try {
-        // Obtener todos los IDs de procesos
         const procesoIds = procesos.map(p => p.procesos_id);
         
         if (procesoIds.length === 0) {
             totalDocumentos.textContent = '0';
+            allDocuments = [];
             return;
         }
 
@@ -179,22 +179,20 @@ async function cargarDocumentos() {
 
         if (error) throw error;
 
-        totalDocumentos.textContent = data?.length || 0;
-
-        // Guardar documentos en un mapa para acceso rápido
-        window.documentosMap = {};
-        if (data) {
-            data.forEach(doc => {
-                if (!window.documentosMap[doc.procesos_id]) {
-                    window.documentosMap[doc.procesos_id] = [];
-                }
-                window.documentosMap[doc.procesos_id].push(doc);
-            });
-        }
+        allDocuments = data || [];
+        totalDocumentos.textContent = allDocuments.length;
 
     } catch (error) {
         console.error('❌ Error cargando documentos:', error);
+        allDocuments = [];
     }
+}
+
+// ============================================
+// FUNCIÓN: OBTENER DOCUMENTOS POR PROCESO
+// ============================================
+function getDocumentosByProceso(procesoId) {
+    return allDocuments.filter(doc => doc.procesos_id === procesoId);
 }
 
 // ============================================
@@ -204,7 +202,6 @@ function renderTabla() {
     const searchTerm = searchInput?.value?.toLowerCase() || '';
     const estadoFiltro = filtroEstado?.value || 'todos';
 
-    // Filtrar
     filteredProcesos = procesos.filter(p => {
         const matchEstado = estadoFiltro === 'todos' || p.estado === estadoFiltro;
         const matchSearch = p.codigo_proceso?.toLowerCase().includes(searchTerm) ||
@@ -212,7 +209,6 @@ function renderTabla() {
         return matchEstado && matchSearch;
     });
 
-    // Paginación
     const total = filteredProcesos.length;
     const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
     
@@ -222,12 +218,10 @@ function renderTabla() {
     const end = Math.min(start + PAGE_SIZE, total);
     const pageData = filteredProcesos.slice(start, end);
 
-    // Actualizar info de paginación
     paginationInfo.textContent = `Mostrando ${total > 0 ? start + 1 : 0} - ${end} de ${total}`;
     prevPageBtn.disabled = currentPage <= 1;
     nextPageBtn.disabled = currentPage >= totalPages;
 
-    // Renderizar filas
     if (pageData.length === 0) {
         tableBody.innerHTML = `
             <tr>
@@ -252,8 +246,8 @@ function renderTabla() {
                 <td>${p.prioridad || 'normal'}</td>
                 <td>${p.created_at ? new Date(p.created_at).toLocaleDateString('es-ES') : 'N/A'}</td>
                 <td style="text-align: center;">
-                    <button class="btn-action btn-info" onclick="verDetalle('${p.procesos_id}')">
-                        📄 Ver
+                    <button class="btn-action btn-info" onclick="abrirDetalle('${p.procesos_id}')">
+                        📄 Ver Detalle
                     </button>
                 </td>
             </tr>
@@ -262,30 +256,68 @@ function renderTabla() {
 }
 
 // ============================================
-// FUNCIÓN: VER DETALLE DEL PROCESO
+// FUNCIÓN: ABRIR PANEL DE DETALLE
 // ============================================
-window.verDetalle = function(procesoId) {
+window.abrirDetalle = function(procesoId) {
     const proceso = procesos.find(p => p.procesos_id === procesoId);
     if (!proceso) return;
 
-    // Llenar información del proceso
-    modalTitulo.textContent = `📄 ${proceso.codigo_proceso}`;
-    modalCodigo.textContent = proceso.codigo_proceso;
-    modalEstado.textContent = proceso.estado || 'pendiente';
-    modalPrioridad.textContent = proceso.prioridad || 'normal';
-    modalFecha.textContent = proceso.created_at ? new Date(proceso.created_at).toLocaleDateString('es-ES') : 'N/A';
-    modalDescripcion.textContent = proceso.descripcion || 'Sin descripción';
+    // Encabezado
+    detalleCodigo.textContent = `📄 ${proceso.codigo_proceso}`;
+    detalleEstado.textContent = `${proceso.estado || 'pendiente'}`;
+    detalleEstado.className = `status-badge ${
+        proceso.estado === 'completado' ? 'status-aprobado' :
+        proceso.estado === 'en_progreso' ? 'status-pendiente' : 'status-rechazado'
+    }`;
+    detallePrioridad.textContent = `Prioridad: ${proceso.prioridad || 'normal'}`;
+    detalleFecha.textContent = `${proceso.created_at ? new Date(proceso.created_at).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}`;
+    detalleDescripcion.textContent = proceso.descripcion || 'Sin descripción.';
 
-    // Cargar documentos
-    const docs = window.documentosMap?.[procesoId] || [];
+    // Historial de estados (simulado con línea de tiempo)
+    // Como no tenemos tabla de historial, simulamos con los estados básicos
+    const estadosHistoria = [
+        { estado: 'pendiente', fecha: proceso.created_at, descripcion: 'Proceso creado' },
+    ];
+    if (proceso.estado === 'en_progreso' || proceso.estado === 'completado') {
+        estadosHistoria.push({ 
+            estado: 'en_progreso', 
+            fecha: proceso.updated_at || proceso.created_at, 
+            descripcion: 'Proceso en revisión' 
+        });
+    }
+    if (proceso.estado === 'completado') {
+        estadosHistoria.push({ 
+            estado: 'completado', 
+            fecha: proceso.updated_at, 
+            descripcion: 'Proceso completado' 
+        });
+    }
+
+    detalleHistorial.innerHTML = estadosHistoria.map((item, index) => {
+        const isActive = item.estado === proceso.estado;
+        const emoji = item.estado === 'completado' ? '✅' : 
+                     item.estado === 'en_progreso' ? '🔄' : '⏳';
+        return `
+            <div style="display: flex; gap: var(--spacing-md); margin-bottom: var(--spacing-md); position: relative; padding-left: 24px; border-left: 2px solid ${isActive ? 'var(--sigatt-blue)' : 'var(--sigatt-border)'};">
+                <div style="position: absolute; left: -8px; top: 4px; width: 14px; height: 14px; border-radius: 50%; background: ${isActive ? 'var(--sigatt-blue)' : 'var(--sigatt-border)'}; border: 2px solid white; box-shadow: 0 0 0 2px ${isActive ? 'var(--sigatt-blue)' : 'var(--sigatt-border)'};"></div>
+                <div>
+                    <p style="font-weight: var(--font-weight-medium); margin: 0;">${emoji} ${item.descripcion}</p>
+                    <p style="font-size: 0.75rem; color: var(--sigatt-text-secondary); margin: 0;">${item.fecha ? new Date(item.fecha).toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}</p>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    // Documentos
+    const docs = getDocumentosByProceso(procesoId);
     
     if (docs.length === 0) {
-        modalDocumentos.innerHTML = '<p class="text-secondary text-small">No hay documentos asociados a este proceso.</p>';
+        detalleDocumentos.innerHTML = '<p class="text-secondary text-small">No hay documentos asociados a este proceso.</p>';
     } else {
-        modalDocumentos.innerHTML = docs.map(doc => `
+        detalleDocumentos.innerHTML = docs.map(doc => `
             <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--spacing-sm); border-bottom: 1px solid var(--sigatt-border);">
                 <div>
-                    <strong>${doc.name_documento}</strong>
+                    <strong style="font-size: 0.9rem;">${doc.name_documento}</strong>
                     <span class="text-small text-secondary" style="margin-left: var(--spacing-sm);">
                         ${doc.tipo_documento || 'Documento'} · ${doc.subido_en ? new Date(doc.subido_en).toLocaleDateString('es-ES') : ''}
                     </span>
@@ -297,23 +329,34 @@ window.verDetalle = function(procesoId) {
         `).join('');
     }
 
-    procesoModal.style.display = 'flex';
+    // Abrir panel
+    detallePanel.style.right = '0';
 };
+
+// ============================================
+// FUNCIÓN: CERRAR PANEL DE DETALLE
+// ============================================
+function cerrarDetalle() {
+    detallePanel.style.right = '-100%';
+}
+
+cerrarDetalleBtn.addEventListener('click', cerrarDetalle);
+
+// Cerrar al hacer clic fuera (en el overlay)
+document.addEventListener('click', (e) => {
+    if (detallePanel.style.right === '0px') {
+        const rect = detallePanel.getBoundingClientRect();
+        if (e.clientX > rect.right || e.clientX < rect.left) {
+            cerrarDetalle();
+        }
+    }
+});
 
 // ============================================
 // FUNCIÓN: VER DOCUMENTO
 // ============================================
 window.verDocumento = function(infoId) {
-    // Buscar el documento en el mapa
-    let documento = null;
-    for (const key in window.documentosMap) {
-        const found = window.documentosMap[key].find(d => d.info_id === infoId);
-        if (found) {
-            documento = found;
-            break;
-        }
-    }
-
+    const documento = allDocuments.find(d => d.info_id === infoId);
     if (!documento) {
         alert('⚠️ Documento no encontrado');
         return;
@@ -327,7 +370,6 @@ window.verDocumento = function(infoId) {
     let html = '';
 
     if (mimeType.includes('pdf') || url.includes('.pdf')) {
-        // PDF → incrustar
         html = `
             <embed src="${url}" type="application/pdf" style="width: 100%; height: 70vh; border: none; border-radius: var(--radius-md);">
             <p class="text-small text-secondary" style="margin-top: var(--spacing-sm);">
@@ -335,12 +377,10 @@ window.verDocumento = function(infoId) {
             </p>
         `;
     } else if (mimeType.includes('image') || url.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)) {
-        // Imagen → mostrar
         html = `
             <img src="${url}" alt="${documento.name_documento}" style="max-width: 100%; max-height: 70vh; border-radius: var(--radius-md);">
         `;
     } else {
-        // Otros (Word, Excel, PowerPoint) → Google Docs Viewer
         const viewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
         html = `
             <iframe src="${viewerUrl}" style="width: 100%; height: 70vh; border: none; border-radius: var(--radius-md);"></iframe>
@@ -370,14 +410,6 @@ function ocultarStatus() {
 // ============================================
 // EVENTOS DE MODALES
 // ============================================
-modalCerrarBtn.addEventListener('click', () => {
-    procesoModal.style.display = 'none';
-});
-
-procesoModal.addEventListener('click', (e) => {
-    if (e.target === procesoModal) procesoModal.style.display = 'none';
-});
-
 documentoModalCerrarBtn.addEventListener('click', () => {
     documentoModal.style.display = 'none';
 });
@@ -449,7 +481,6 @@ logoutBtn?.addEventListener('click', async () => {
 // ============================================
 async function init() {
     try {
-        // 1. Cargar variables de entorno
         const env = await loadEnv();
         VALIDAR_TOKEN_URL = env.VITE_VALIDAR_TOKEN_URL;
 
@@ -457,10 +488,8 @@ async function init() {
             throw new Error('VITE_VALIDAR_TOKEN_URL no configurada en Vercel');
         }
 
-        // 2. Inicializar Supabase
         supabase = getSupabase();
 
-        // 3. Obtener token de la URL
         const token = getTokenFromURL();
         
         if (!token) {
@@ -469,21 +498,15 @@ async function init() {
             return;
         }
 
-        // 4. Validar el token
         mostrarStatus('🔍 Verificando tu acceso...', 'info');
         const tokenData = await validarToken(token);
 
-        // 5. Obtener datos del usuario
         await cargarUsuario(tokenData.telegram_id);
-
-        // 6. Cargar procesos y documentos
         await cargarProcesos();
 
-        // 7. Mostrar dashboard
         ocultarStatus();
         dashboardContent.style.display = 'block';
 
-        // 8. Auto-refrescar cada 60 segundos
         setInterval(cargarProcesos, 60000);
 
         console.log('🚀 Dashboard de usuario iniciado');
@@ -495,9 +518,6 @@ async function init() {
     }
 }
 
-// ============================================
-// INICIAR APLICACIÓN
-// ============================================
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
 } else {
