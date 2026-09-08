@@ -1,5 +1,5 @@
 // js/admin/dashboard.js
-import { supabase } from '../supabase-config.js';
+import { getSupabase } from '../supabase-config.js';
 import { protegerRuta, cerrarSesion } from './auth.js';
 
 // ============================================
@@ -7,26 +7,54 @@ import { protegerRuta, cerrarSesion } from './auth.js';
 // ============================================
 const PAGE_SIZE = 10;
 let currentPage = 1;
-let solicitudes = [];
-let filteredSolicitudes = [];
+let procesos = [];
+let filteredProcesos = [];
+let supabase = null;
+let usuarios = [];
+let documentos = {};
+let currentProcesoId = null;
+let archivosSeleccionados = [];
 
 // ============================================
 // DOM ELEMENTS
 // ============================================
-const tableBody = document.getElementById('solicitudesTableBody');
+const statusMessage = document.getElementById('statusMessage');
+const logoutBtn = document.getElementById('logoutBtn');
+const refreshBtn = document.getElementById('refreshBtn');
+const userName = document.getElementById('userName');
+
+const totalProcesos = document.getElementById('totalProcesos');
+const activos = document.getElementById('activos');
+const completados = document.getElementById('completados');
+const totalDocumentos = document.getElementById('totalDocumentos');
+
+const tableBody = document.getElementById('procesosTableBody');
 const searchInput = document.getElementById('searchInput');
+const filtroEstado = document.getElementById('filtroEstado');
+const filtroPrioridad = document.getElementById('filtroPrioridad');
 const prevPageBtn = document.getElementById('prevPage');
 const nextPageBtn = document.getElementById('nextPage');
 const paginationInfo = document.getElementById('paginationInfo');
-const logoutBtn = document.getElementById('logoutBtn');
-const userName = document.getElementById('userName');
-const refreshBtn = document.getElementById('refreshBtn');
-const pendingCount = document.getElementById('pendingCount');
-const approvedCount = document.getElementById('approvedCount');
-const rejectedCount = document.getElementById('rejectedCount');
-const totalUsers = document.getElementById('totalUsers');
 
-// Modal
+// ===== PROGRESS PANEL =====
+const procesoPanel = document.getElementById('procesoPanel');
+const cerrarProcesoPanelBtn = document.getElementById('cerrarProcesoPanelBtn');
+const cancelarProcesoBtn = document.getElementById('cancelarProcesoBtn');
+const procesoPanelTitulo = document.getElementById('procesoPanelTitulo');
+const procesoForm = document.getElementById('procesoForm');
+const procesoId = document.getElementById('procesoId');
+const procesoUsuario = document.getElementById('procesoUsuario');
+const procesoCodigo = document.getElementById('procesoCodigo');
+const procesoPrioridad = document.getElementById('procesoPrioridad');
+const procesoEstado = document.getElementById('procesoEstado');
+const procesoFechaLimite = document.getElementById('procesoFechaLimite');
+const procesoDescripcion = document.getElementById('procesoDescripcion');
+const procesoNotas = document.getElementById('procesoNotas');
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const documentosLista = document.getElementById('documentosLista');
+
+// ===== MODAL =====
 const modal = document.getElementById('confirmModal');
 const modalTitle = document.getElementById('modalTitle');
 const modalMessage = document.getElementById('modalMessage');
@@ -37,86 +65,82 @@ let modalAction = null;
 let modalData = null;
 
 // ============================================
-// FUNCIÓN: CARGAR DATOS DEL DASHBOARD
+// FUNCIÓN: CARGAR USUARIOS
 // ============================================
-async function cargarDashboard() {
-    try {
-        // 1. Cargar estadísticas
-        await cargarEstadisticas();
-
-        // 2. Cargar solicitudes pendientes
-        await cargarSolicitudes();
-
-        // 3. Actualizar tabla
-        renderTabla();
-
-        console.log('✅ Dashboard actualizado');
-    } catch (error) {
-        console.error('❌ Error cargando dashboard:', error);
-    }
-}
-
-// ============================================
-// FUNCIÓN: CARGAR ESTADÍSTICAS
-// ============================================
-async function cargarEstadisticas() {
-    try {
-        // Solicitudes pendientes
-        const { count: pending } = await supabase
-            .from('usuarios_pendientes')
-            .select('*', { count: 'exact', head: true })
-            .eq('estado', 'pendiente');
-
-        // Solicitudes aprobadas
-        const { count: approved } = await supabase
-            .from('usuarios_pendientes')
-            .select('*', { count: 'exact', head: true })
-            .eq('estado', 'aprobado');
-
-        // Solicitudes rechazadas
-        const { count: rejected } = await supabase
-            .from('usuarios_pendientes')
-            .select('*', { count: 'exact', head: true })
-            .eq('estado', 'rechazado');
-
-        // Total usuarios
-        const { count: users } = await supabase
-            .from('usuarios')
-            .select('*', { count: 'exact', head: true });
-
-        pendingCount.textContent = pending || 0;
-        approvedCount.textContent = approved || 0;
-        rejectedCount.textContent = rejected || 0;
-        totalUsers.textContent = users || 0;
-
-    } catch (error) {
-        console.error('❌ Error cargando estadísticas:', error);
-    }
-}
-
-// ============================================
-// FUNCIÓN: CARGAR SOLICITUDES
-// ============================================
-async function cargarSolicitudes() {
+async function cargarUsuarios() {
     try {
         const { data, error } = await supabase
-            .from('usuarios_pendientes')
+            .from('usuarios')
+            .select('user_id, nombres_apellidos, email')
+            .eq('rol', 'usuario')
+            .order('nombres_apellidos');
+
+        if (error) throw error;
+        usuarios = data || [];
+
+        // Llenar select de usuarios
+        procesoUsuario.innerHTML = '<option value="">Seleccionar usuario...</option>';
+        usuarios.forEach(u => {
+            const option = document.createElement('option');
+            option.value = u.user_id;
+            option.textContent = `${u.nombres_apellidos} (${u.email})`;
+            procesoUsuario.appendChild(option);
+        });
+
+    } catch (error) {
+        console.error('❌ Error cargando usuarios:', error);
+    }
+}
+
+// ============================================
+// FUNCIÓN: CARGAR PROCESOS
+// ============================================
+async function cargarProcesos() {
+    try {
+        const { data, error } = await supabase
+            .from('procesos')
             .select('*')
-            .eq('estado', 'pendiente')
             .order('created_at', { ascending: false });
 
         if (error) throw error;
 
-        solicitudes = data || [];
-        filteredSolicitudes = [...solicitudes];
+        procesos = data || [];
+        filteredProcesos = [...procesos];
         currentPage = 1;
 
-        console.log(`📋 ${filteredSolicitudes.length} solicitudes pendientes`);
+        // Estadísticas
+        const total = procesos.length;
+        const activosCount = procesos.filter(p => p.estado === 'activo' || p.estado === 'en_revision').length;
+        const completadosCount = procesos.filter(p => p.estado === 'completado').length;
+
+        totalProcesos.textContent = total;
+        activos.textContent = activosCount;
+        completados.textContent = completadosCount;
+
+        // Contar documentos
+        await contarDocumentos();
+
+        renderTabla();
 
     } catch (error) {
-        console.error('❌ Error cargando solicitudes:', error);
-        solicitudes = [];
-        filteredSolicitudes = [];
+        console.error('❌ Error cargando procesos:', error);
+    }
+}
+
+// ============================================
+// FUNCIÓN: CONTAR DOCUMENTOS
+// ============================================
+async function contarDocumentos() {
+    try {
+        const { count, error } = await supabase
+            .from('info')
+            .select('*', { count: 'exact', head: true });
+
+        if (error) throw error;
+        totalDocumentos.textContent = count || 0;
+
+    } catch (error) {
+        console.error('❌ Error contando documentos:', error);
     }
 }
 
@@ -125,144 +149,287 @@ async function cargarSolicitudes() {
 // ============================================
 function renderTabla() {
     const searchTerm = searchInput?.value?.toLowerCase() || '';
-    
-    // Filtrar
-    if (searchTerm) {
-        filteredSolicitudes = solicitudes.filter(s => 
-            s.nombres_apellidos?.toLowerCase().includes(searchTerm) ||
-            s.email?.toLowerCase().includes(searchTerm) ||
-            s.num_celular?.includes(searchTerm)
-        );
-    } else {
-        filteredSolicitudes = [...solicitudes];
-    }
+    const estadoFiltro = filtroEstado?.value || 'todos';
+    const prioridadFiltro = filtroPrioridad?.value || 'todas';
 
-    // Paginación
-    const total = filteredSolicitudes.length;
+    filteredProcesos = procesos.filter(p => {
+        const matchEstado = estadoFiltro === 'todos' || p.estado === estadoFiltro;
+        const matchPrioridad = prioridadFiltro === 'todas' || p.prioridad === prioridadFiltro;
+        const matchSearch = p.codigo_proceso?.toLowerCase().includes(searchTerm) ||
+                           p.descripcion?.toLowerCase().includes(searchTerm);
+        return matchEstado && matchPrioridad && matchSearch;
+    });
+
+    const total = filteredProcesos.length;
     const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
     
     if (currentPage > totalPages) currentPage = totalPages;
     
     const start = (currentPage - 1) * PAGE_SIZE;
     const end = Math.min(start + PAGE_SIZE, total);
-    const pageData = filteredSolicitudes.slice(start, end);
+    const pageData = filteredProcesos.slice(start, end);
 
-    // Actualizar info de paginación
     paginationInfo.textContent = `Mostrando ${total > 0 ? start + 1 : 0} - ${end} de ${total}`;
     prevPageBtn.disabled = currentPage <= 1;
     nextPageBtn.disabled = currentPage >= totalPages;
 
-    // Renderizar filas
     if (pageData.length === 0) {
         tableBody.innerHTML = `
             <tr>
-                <td colspan="5" style="text-align: center; padding: var(--spacing-xl); color: var(--sigatt-text-secondary);">
-                    ${searchTerm ? 'No se encontraron solicitudes con ese filtro' : 'No hay solicitudes pendientes'}
+                <td colspan="6" style="text-align: center; padding: var(--spacing-xl); color: var(--sigatt-text-secondary);">
+                    ${searchTerm || estadoFiltro !== 'todos' || prioridadFiltro !== 'todas' ? 'No se encontraron procesos con ese filtro' : 'No hay procesos registrados'}
                 </td>
             </tr>
         `;
         return;
     }
 
-    tableBody.innerHTML = pageData.map(s => `
-        <tr>
-            <td><strong>${s.nombres_apellidos || 'Sin nombre'}</strong></td>
-            <td>${s.email || 'Sin email'}</td>
-            <td>${s.num_celular || 'Sin teléfono'}</td>
-            <td>${s.created_at ? new Date(s.created_at).toLocaleDateString() : 'N/A'}</td>
-            <td>
-                <div class="table-actions">
-                    <button class="btn-action btn-success" onclick="aprobarSolicitud('${s.id}', '${s.nombres_apellidos}')">
-                        ✅ Aprobar
+    tableBody.innerHTML = pageData.map(p => {
+        const estadoEmoji = p.estado === 'completado' ? '✅' : 
+                           p.estado === 'activo' ? '🔄' : 
+                           p.estado === 'en_revision' ? '🔍' : 
+                           p.estado === 'archivado' ? '📦' : '⏳';
+        const estadoClass = p.estado === 'completado' ? 'status-aprobado' :
+                           p.estado === 'activo' ? 'status-pendiente' : 'status-rechazado';
+        
+        return `
+            <tr>
+                <td><strong>${p.codigo_proceso}</strong></td>
+                <td>${p.user_id ? await getUsuarioNombre(p.user_id) : 'Sin asignar'}</td>
+                <td><span class="status-badge ${estadoClass}">${estadoEmoji} ${p.estado || 'pendiente'}</span></td>
+                <td>${p.prioridad || 'normal'}</td>
+                <td>${p.created_at ? new Date(p.created_at).toLocaleDateString('es-ES') : 'N/A'}</td>
+                <td style="text-align: center;">
+                    <button class="btn-action btn-info" onclick="editarProceso('${p.procesos_id}')">
+                        ✏️ Editar
                     </button>
-                    <button class="btn-action btn-danger" onclick="rechazarSolicitud('${s.id}', '${s.nombres_apellidos}')">
-                        ❌ Rechazar
+                    <button class="btn-action btn-danger" onclick="eliminarProceso('${p.procesos_id}')">
+                        🗑️
                     </button>
-                </div>
-            </td>
-        </tr>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// ============================================
+// FUNCIÓN: OBTENER NOMBRE DE USUARIO
+// ============================================
+async function getUsuarioNombre(userId) {
+    const user = usuarios.find(u => u.user_id === userId);
+    return user ? user.nombres_apellidos : 'Sin asignar';
+}
+
+// ============================================
+// FUNCIÓN: ABRIR PANEL NUEVO PROCESO
+// ============================================
+function abrirNuevoProceso() {
+    currentProcesoId = null;
+    procesoPanelTitulo.textContent = '📝 Nuevo Proceso';
+    procesoForm.reset();
+    procesoId.value = '';
+    procesoCodigo.value = '';
+    procesoCodigo.disabled = false;
+    procesoUsuario.value = '';
+    procesoEstado.value = 'pendiente';
+    procesoPrioridad.value = 'normal';
+    procesoFechaLimite.value = '';
+    procesoDescripcion.value = '';
+    procesoNotas.value = '';
+    documentosLista.innerHTML = '<p class="text-secondary text-small">No hay documentos subidos.</p>';
+    archivosSeleccionados = [];
+    procesoPanel.style.right = '0';
+}
+
+// ============================================
+// FUNCIÓN: ABRIR PANEL EDITAR PROCESO
+// ============================================
+window.editarProceso = async function(procesoId) {
+    try {
+        const { data: proceso, error } = await supabase
+            .from('procesos')
+            .select('*')
+            .eq('procesos_id', procesoId)
+            .single();
+
+        if (error) throw error;
+
+        currentProcesoId = procesoId;
+        procesoPanelTitulo.textContent = `✏️ Editar: ${proceso.codigo_proceso}`;
+        procesoId.value = proceso.procesos_id;
+        procesoCodigo.value = proceso.codigo_proceso;
+        procesoCodigo.disabled = true;
+        procesoUsuario.value = proceso.user_id || '';
+        procesoEstado.value = proceso.estado || 'pendiente';
+        procesoPrioridad.value = proceso.prioridad || 'normal';
+        procesoFechaLimite.value = proceso.fecha_limite ? proceso.fecha_limite.split('T')[0] : '';
+        procesoDescripcion.value = proceso.descripcion || '';
+        procesoNotas.value = proceso.notas_internas || '';
+
+        // Cargar documentos del proceso
+        await cargarDocumentosProceso(procesoId);
+
+        procesoPanel.style.right = '0';
+
+    } catch (error) {
+        console.error('❌ Error cargando proceso:', error);
+        mostrarStatus('⚠️ Error al cargar el proceso', 'error');
+    }
+};
+
+// ============================================
+// FUNCIÓN: CARGAR DOCUMENTOS DEL PROCESO
+// ============================================
+async function cargarDocumentosProceso(procesoId) {
+    try {
+        const { data, error } = await supabase
+            .from('info')
+            .select('*')
+            .eq('procesos_id', procesoId)
+            .order('subido_en', { ascending: false });
+
+        if (error) throw error;
+
+        documentos[procesoId] = data || [];
+        renderDocumentos(procesoId);
+
+    } catch (error) {
+        console.error('❌ Error cargando documentos:', error);
+    }
+}
+
+// ============================================
+// FUNCIÓN: RENDERIZAR DOCUMENTOS
+// ============================================
+function renderDocumentos(procesoId) {
+    const docs = documentos[procesoId] || [];
+    
+    if (docs.length === 0) {
+        documentosLista.innerHTML = '<p class="text-secondary text-small">No hay documentos subidos.</p>';
+        return;
+    }
+
+    documentosLista.innerHTML = docs.map(doc => `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--spacing-sm); border-bottom: 1px solid var(--sigatt-border);">
+            <div>
+                <strong style="font-size: 0.9rem;">${doc.name_documento}</strong>
+                <span class="text-small text-secondary" style="margin-left: var(--spacing-sm);">
+                    ${doc.subido_en ? new Date(doc.subido_en).toLocaleDateString('es-ES') : ''}
+                </span>
+                ${doc.anotacion ? `<br><span class="text-small text-secondary">📝 ${doc.anotacion}</span>` : ''}
+            </div>
+            <div style="display: flex; gap: var(--spacing-xs);">
+                <button class="btn-action btn-info" onclick="verDocumentoAdmin('${doc.info_id}')">👁️</button>
+                <button class="btn-action btn-danger" onclick="eliminarDocumento('${doc.info_id}')">🗑️</button>
+            </div>
+        </div>
     `).join('');
 }
 
 // ============================================
-// FUNCIÓN: APROBAR SOLICITUD
+// FUNCIÓN: SUBIR DOCUMENTOS
 // ============================================
-window.aprobarSolicitud = function(id, nombre) {
-    modalTitle.textContent = '✅ Aprobar solicitud';
-    modalMessage.textContent = `¿Estás seguro de aprobar la solicitud de "${nombre}"? Se creará el usuario y se enviará la notificación.`;
-    modalConfirmBtn.className = 'btn btn-success';
-    modalConfirmBtn.textContent = 'Aprobar';
-    modalAction = 'aprobar';
-    modalData = { id, nombre };
+async function subirDocumentos(procesoId, files) {
+    if (!procesoId) {
+        mostrarStatus('⚠️ Guarda el proceso primero antes de subir documentos.', 'error');
+        return;
+    }
+
+    // Aquí iría la lógica para subir a Google Drive
+    // Por ahora, simulamos la subida
+    for (const file of files) {
+        const docData = {
+            procesos_id: procesoId,
+            name_documento: file.name,
+            documento: `https://drive.google.com/file/d/${file.name}`, // Simulado
+            tamanio_bytes: file.size,
+            mime_type: file.type,
+            extension: file.name.split('.').pop(),
+            es_publico: true,
+            subido_por: 'admin'
+        };
+
+        const { data, error } = await supabase
+            .from('info')
+            .insert([docData])
+            .select();
+
+        if (error) {
+            console.error('❌ Error subiendo documento:', error);
+        }
+    }
+
+    await cargarDocumentosProceso(procesoId);
+    mostrarStatus('✅ Documentos subidos correctamente', 'exito');
+}
+
+// ============================================
+// FUNCIÓN: ELIMINAR DOCUMENTO
+// ============================================
+window.eliminarDocumento = function(infoId) {
+    modalTitle.textContent = '🗑️ Eliminar Documento';
+    modalMessage.textContent = '¿Estás seguro de eliminar este documento? Esta acción no se puede deshacer.';
+    modalConfirmBtn.className = 'btn btn-danger';
+    modalConfirmBtn.textContent = 'Eliminar';
+    modalAction = 'eliminar_documento';
+    modalData = { infoId };
     modal.style.display = 'flex';
 };
 
 // ============================================
-// FUNCIÓN: RECHAZAR SOLICITUD
+// FUNCIÓN: ELIMINAR PROCESO
 // ============================================
-window.rechazarSolicitud = function(id, nombre) {
-    modalTitle.textContent = '❌ Rechazar solicitud';
-    modalMessage.textContent = `¿Estás seguro de rechazar la solicitud de "${nombre}"? Se enviará la notificación y se eliminará.`;
+window.eliminarProceso = function(procesoId) {
+    modalTitle.textContent = '🗑️ Eliminar Proceso';
+    modalMessage.textContent = '¿Estás seguro de eliminar este proceso? Se eliminarán también todos sus documentos.';
     modalConfirmBtn.className = 'btn btn-danger';
-    modalConfirmBtn.textContent = 'Rechazar';
-    modalAction = 'rechazar';
-    modalData = { id, nombre };
+    modalConfirmBtn.textContent = 'Eliminar';
+    modalAction = 'eliminar_proceso';
+    modalData = { procesoId };
     modal.style.display = 'flex';
 };
 
 // ============================================
 // FUNCIÓN: EJECUTAR ACCIÓN DEL MODAL
 // ============================================
-// dashboard.js - Sección de ejecutarAccion
 async function ejecutarAccion() {
     if (!modalAction || !modalData) return;
-
-    const { id, nombre } = modalData;
-    // ✅ URL CORRECTA
-    const url = `${window.ENV?.VITE_SUPABASE_URL}/functions/v1/aprobar-usuario`;
 
     try {
         modalConfirmBtn.disabled = true;
         modalConfirmBtn.textContent = 'Procesando...';
 
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                pending_id: id,
-                accion: modalAction,
-                motivo: modalAction === 'rechazar' ? 'Rechazado por el administrador' : null
-            })
-        });
+        if (modalAction === 'eliminar_documento') {
+            const { error } = await supabase
+                .from('info')
+                .delete()
+                .eq('info_id', modalData.infoId);
 
-        const data = await response.json();
-
-        if (!data.success) {
-            throw new Error(data.error || 'Error al procesar la solicitud');
+            if (error) throw error;
+            await cargarDocumentosProceso(currentProcesoId);
+            mostrarStatus('✅ Documento eliminado', 'exito');
         }
 
-        // Recargar dashboard
-        await cargarDashboard();
+        if (modalAction === 'eliminar_proceso') {
+            const { error } = await supabase
+                .from('procesos')
+                .delete()
+                .eq('procesos_id', modalData.procesoId);
 
-        // Cerrar modal
+            if (error) throw error;
+            await cargarProcesos();
+            mostrarStatus('✅ Proceso eliminado', 'exito');
+        }
+
         cerrarModal();
-
-        // Mostrar notificación
-        const mensaje = modalAction === 'aprobar' 
-            ? `✅ Solicitud de "${nombre}" aprobada exitosamente`
-            : `❌ Solicitud de "${nombre}" rechazada`;
-        alert(mensaje);
 
     } catch (error) {
         console.error('❌ Error:', error);
-        alert('❌ Error al procesar: ' + error.message);
+        mostrarStatus('❌ Error al procesar: ' + error.message, 'error');
         cerrarModal();
     }
 }
 
-// ============================================
-// FUNCIÓN: CERRAR MODAL
-// ============================================
 function cerrarModal() {
     modal.style.display = 'none';
     modalAction = null;
@@ -281,42 +448,104 @@ modal.addEventListener('click', (e) => {
 });
 
 // ============================================
-// EVENTO: BÚSQUEDA
+// EVENTO: NUEVO PROCESO
 // ============================================
-if (searchInput) {
-    searchInput.addEventListener('input', () => {
-        currentPage = 1;
-        renderTabla();
-    });
+document.getElementById('nuevoProcesoBtn').addEventListener('click', abrirNuevoProceso);
+
+// ============================================
+// EVENTOS: CERRAR PANEL
+// ============================================
+function cerrarProcesoPanel() {
+    procesoPanel.style.right = '-100%';
 }
 
+cerrarProcesoPanelBtn.addEventListener('click', cerrarProcesoPanel);
+cancelarProcesoBtn.addEventListener('click', cerrarProcesoPanel);
+
 // ============================================
-// EVENTO: PAGINACIÓN
+// EVENTO: DROPZONE
 // ============================================
-prevPageBtn?.addEventListener('click', () => {
-    if (currentPage > 1) {
-        currentPage--;
-        renderTabla();
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropzone.style.borderColor = 'var(--sigatt-blue)';
+    dropzone.style.background = 'var(--sigatt-light-blue)';
+});
+dropzone.addEventListener('dragleave', () => {
+    dropzone.style.borderColor = 'var(--sigatt-border)';
+    dropzone.style.background = 'transparent';
+});
+dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.style.borderColor = 'var(--sigatt-border)';
+    dropzone.style.background = 'transparent';
+    if (currentProcesoId) {
+        subirDocumentos(currentProcesoId, e.dataTransfer.files);
+    }
+});
+fileInput.addEventListener('change', (e) => {
+    if (currentProcesoId && e.target.files.length > 0) {
+        subirDocumentos(currentProcesoId, e.target.files);
+        fileInput.value = '';
     }
 });
 
-nextPageBtn?.addEventListener('click', () => {
-    const totalPages = Math.ceil(filteredSolicitudes.length / PAGE_SIZE);
-    if (currentPage < totalPages) {
-        currentPage++;
-        renderTabla();
+// ============================================
+// EVENTO: GUARDAR PROCESO
+// ============================================
+procesoForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const data = {
+        user_id: procesoUsuario.value || null,
+        codigo_proceso: procesoCodigo.value.trim(),
+        prioridad: procesoPrioridad.value,
+        estado: procesoEstado.value,
+        fecha_limite: procesoFechaLimite.value || null,
+        descripcion: procesoDescripcion.value.trim(),
+        notas_internas: procesoNotas.value.trim()
+    };
+
+    try {
+        if (procesoId.value) {
+            // Actualizar
+            const { error } = await supabase
+                .from('procesos')
+                .update(data)
+                .eq('procesos_id', procesoId.value);
+
+            if (error) throw error;
+            mostrarStatus('✅ Proceso actualizado correctamente', 'exito');
+        } else {
+            // Crear
+            data.creado_por = 'admin'; // Se reemplazará con el ID real
+            const { error } = await supabase
+                .from('procesos')
+                .insert([data]);
+
+            if (error) throw error;
+            mostrarStatus('✅ Proceso creado correctamente', 'exito');
+        }
+
+        await cargarProcesos();
+        cerrarProcesoPanel();
+
+    } catch (error) {
+        console.error('❌ Error guardando proceso:', error);
+        mostrarStatus('❌ Error al guardar: ' + error.message, 'error');
     }
 });
 
 // ============================================
-// EVENTO: REFRESCAR
+// EVENTOS: REFRESCAR
 // ============================================
 refreshBtn?.addEventListener('click', async () => {
     refreshBtn.disabled = true;
     refreshBtn.textContent = 'Cargando...';
-    await cargarDashboard();
+    await cargarProcesos();
+    await cargarUsuarios();
     refreshBtn.disabled = false;
-    refreshBtn.innerHTML = 'Actualizar <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: var(--spacing-xs);"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>';
+    refreshBtn.innerHTML = 'Actualizar';
 });
 
 // ============================================
@@ -327,21 +556,66 @@ logoutBtn?.addEventListener('click', async () => {
         const result = await cerrarSesion();
         if (result.success) {
             window.location.href = '/admin/login.html';
-        } else {
-            alert('❌ Error al cerrar sesión: ' + result.error);
         }
     }
 });
 
 // ============================================
+// EVENTOS DE BÚSQUEDA Y FILTROS
+// ============================================
+searchInput?.addEventListener('input', () => {
+    currentPage = 1;
+    renderTabla();
+});
+
+filtroEstado?.addEventListener('change', () => {
+    currentPage = 1;
+    renderTabla();
+});
+
+filtroPrioridad?.addEventListener('change', () => {
+    currentPage = 1;
+    renderTabla();
+});
+
+// ============================================
+// EVENTOS DE PAGINACIÓN
+// ============================================
+prevPageBtn?.addEventListener('click', () => {
+    if (currentPage > 1) {
+        currentPage--;
+        renderTabla();
+    }
+});
+
+nextPageBtn?.addEventListener('click', () => {
+    const totalPages = Math.ceil(filteredProcesos.length / PAGE_SIZE);
+    if (currentPage < totalPages) {
+        currentPage++;
+        renderTabla();
+    }
+});
+
+// ============================================
+// FUNCIONES UI
+// ============================================
+function mostrarStatus(texto, tipo = 'info') {
+    statusMessage.textContent = texto;
+    statusMessage.className = `mensaje ${tipo}`;
+    statusMessage.style.display = 'block';
+    setTimeout(() => {
+        statusMessage.style.display = 'none';
+    }, 5000);
+}
+
+// ============================================
 // INICIALIZACIÓN
 // ============================================
 async function init() {
-    // 1. Proteger la ruta (redirigir a login si no está autenticado)
-    const session = await protegerRuta();
-    
-    if (session) {
-        // Mostrar nombre del usuario
+    try {
+        const session = await protegerRuta();
+        if (!session) return;
+
         const { data: user } = await supabase
             .from('usuarios')
             .select('nombres_apellidos')
@@ -352,13 +626,18 @@ async function init() {
             userName.textContent = user.nombres_apellidos || 'Admin';
         }
 
-        // 2. Cargar dashboard
-        await cargarDashboard();
+        supabase = getSupabase();
 
-        // 3. Auto-refrescar cada 60 segundos
-        setInterval(cargarDashboard, 60000);
+        await cargarUsuarios();
+        await cargarProcesos();
+
+        setInterval(cargarProcesos, 60000);
+
+        console.log('🚀 Panel de Administración iniciado');
+
+    } catch (error) {
+        console.error('❌ Error en la inicialización:', error);
     }
 }
 
-// Iniciar
 init();
