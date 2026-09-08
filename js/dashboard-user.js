@@ -256,7 +256,7 @@ function renderTabla() {
 }
 
 // ============================================
-// FUNCIÓN: ABRIR PANEL DE DETALLE
+// FUNCIÓN: ABRIR PANEL DE DETALLE (GLOBAL)
 // ============================================
 window.abrirDetalle = function(procesoId) {
     const proceso = procesos.find(p => p.procesos_id === procesoId);
@@ -274,7 +274,6 @@ window.abrirDetalle = function(procesoId) {
     detalleDescripcion.textContent = proceso.descripcion || 'Sin descripción.';
 
     // Historial de estados (simulado con línea de tiempo)
-    // Como no tenemos tabla de historial, simulamos con los estados básicos
     const estadosHistoria = [
         { estado: 'pendiente', fecha: proceso.created_at, descripcion: 'Proceso creado' },
     ];
@@ -353,7 +352,7 @@ document.addEventListener('click', (e) => {
 });
 
 // ============================================
-// FUNCIÓN: VER DOCUMENTO
+// FUNCIÓN: VER DOCUMENTO (GLOBAL)
 // ============================================
 window.verDocumento = function(infoId) {
     const documento = allDocuments.find(d => d.info_id === infoId);
@@ -461,13 +460,21 @@ refreshBtn?.addEventListener('click', async () => {
 });
 
 // ============================================
-// EVENTO: CERRAR SESIÓN
+// EVENTO: CERRAR SESIÓN (CORREGIDO)
 // ============================================
 logoutBtn?.addEventListener('click', async () => {
     if (confirm('¿Estás seguro de cerrar sesión?')) {
         try {
+            // Eliminar token de la URL
+            const url = new URL(window.location);
+            url.searchParams.delete('token');
+            window.history.replaceState({}, document.title, url.pathname);
+            
+            // Cerrar sesión en Supabase
             const supabaseClient = getSupabase();
             await supabaseClient.auth.signOut();
+            
+            // Redirigir al inicio (página de registro)
             window.location.href = '/';
         } catch (error) {
             console.error('❌ Error al cerrar sesión:', error);
