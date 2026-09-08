@@ -89,9 +89,9 @@
                         <div style="display: flex; gap: var(--spacing-sm); flex-wrap: wrap;">
                             <select id="filtroEstado" class="form-input" style="height: 36px; width: 150px; max-width: 100%;">
                                 <option value="todos">Todos los estados</option>
-                                <option value="pendiente">Pendiente</option>
-                                <option value="en_progreso">En Progreso</option>
-                                <option value="completado">Completado</option>
+                                <option value="pendiente">⏳ Pendiente</option>
+                                <option value="en_progreso">🔄 En Progreso</option>
+                                <option value="completado">✅ Completado</option>
                             </select>
                             <input type="text" id="searchInput" class="form-input" placeholder="Buscar por código..." style="height: 36px; width: 200px; max-width: 100%;">
                         </div>
@@ -139,35 +139,50 @@
         </div>
     </footer>
 
-    <!-- ===== MODAL DE DETALLE DE PROCESO ===== -->
-    <div id="procesoModal" style="display: none; position: fixed; inset: 0; background: rgba(7, 43, 87, 0.5); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center; padding: var(--spacing-md);">
-        <div style="background: var(--sigatt-white); border-radius: var(--radius-xl); padding: var(--spacing-xl); max-width: 700px; width: 100%; max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow-lg);">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--spacing-md);">
-                <h3 id="modalTitulo">Detalle del Proceso</h3>
-                <button id="modalCerrarBtn" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--sigatt-text-secondary);">&times;</button>
+    <!-- ===== PANEL LATERAL DE DETALLE (SLIDE-IN) ===== -->
+    <div id="detallePanel" style="position: fixed; top: 0; right: -100%; width: 100%; max-width: 600px; height: 100%; background: var(--sigatt-white); box-shadow: var(--shadow-lg); z-index: 2000; transition: right 0.3s ease; overflow-y: auto; padding: var(--spacing-xl);">
+        
+        <!-- Botón cerrar -->
+        <div style="display: flex; justify-content: flex-end; margin-bottom: var(--spacing-md);">
+            <button id="cerrarDetalleBtn" style="background: none; border: none; font-size: 1.8rem; cursor: pointer; color: var(--sigatt-text-secondary);">&times;</button>
+        </div>
+
+        <!-- Encabezado del proceso -->
+        <div style="margin-bottom: var(--spacing-lg);">
+            <h3 id="detalleCodigo">Cargando...</h3>
+            <div style="display: flex; gap: var(--spacing-md); margin-top: var(--spacing-sm); flex-wrap: wrap;">
+                <span class="status-badge" id="detalleEstado">-</span>
+                <span class="text-small text-secondary" id="detallePrioridad">Prioridad: -</span>
+                <span class="text-small text-secondary" id="detalleFecha">-</span>
             </div>
+        </div>
 
-            <div id="modalContenido">
-                <!-- Información del proceso -->
-                <div style="margin-bottom: var(--spacing-md);">
-                    <p><strong>Código:</strong> <span id="modalCodigo">-</span></p>
-                    <p><strong>Estado:</strong> <span id="modalEstado">-</span></p>
-                    <p><strong>Prioridad:</strong> <span id="modalPrioridad">-</span></p>
-                    <p><strong>Fecha:</strong> <span id="modalFecha">-</span></p>
-                    <p><strong>Descripción:</strong> <span id="modalDescripcion">-</span></p>
-                </div>
+        <!-- Descripción -->
+        <div style="margin-bottom: var(--spacing-lg); padding: var(--spacing-md); background: var(--sigatt-background); border-radius: var(--radius-md);">
+            <p class="text-small" style="font-weight: var(--font-weight-medium); margin-bottom: var(--spacing-xs);">📝 Descripción</p>
+            <p id="detalleDescripcion" class="text-secondary text-small" style="margin: 0;">Sin descripción.</p>
+        </div>
 
-                <!-- Documentos -->
-                <h4 style="margin-bottom: var(--spacing-sm);">📎 Documentos</h4>
-                <div id="modalDocumentos" style="max-height: 300px; overflow-y: auto;">
-                    <p class="text-secondary text-small">Cargando documentos...</p>
-                </div>
+        <!-- Historial de estados (línea de tiempo) -->
+        <div style="margin-bottom: var(--spacing-lg);">
+            <p class="text-small" style="font-weight: var(--font-weight-medium); margin-bottom: var(--spacing-md);">📋 Historial de estados</p>
+            <div id="detalleHistorial" style="position: relative; padding-left: 20px;">
+                <!-- Los items se generarán dinámicamente -->
+                <p class="text-secondary text-small">Cargando historial...</p>
+            </div>
+        </div>
+
+        <!-- Documentos -->
+        <div>
+            <p class="text-small" style="font-weight: var(--font-weight-medium); margin-bottom: var(--spacing-md);">📎 Documentos asociados</p>
+            <div id="detalleDocumentos">
+                <p class="text-secondary text-small">Cargando documentos...</p>
             </div>
         </div>
     </div>
 
     <!-- ===== MODAL DE VISUALIZACIÓN DE DOCUMENTO ===== -->
-    <div id="documentoModal" style="display: none; position: fixed; inset: 0; background: rgba(7, 43, 87, 0.5); backdrop-filter: blur(4px); z-index: 1001; align-items: center; justify-content: center; padding: var(--spacing-md);">
+    <div id="documentoModal" style="display: none; position: fixed; inset: 0; background: rgba(7, 43, 87, 0.5); backdrop-filter: blur(4px); z-index: 3000; align-items: center; justify-content: center; padding: var(--spacing-md);">
         <div style="background: var(--sigatt-white); border-radius: var(--radius-xl); padding: var(--spacing-xl); max-width: 900px; width: 100%; max-height: 95vh; overflow-y: auto; box-shadow: var(--shadow-lg);">
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--spacing-md);">
                 <h4 id="documentoModalTitulo">Documento</h4>
