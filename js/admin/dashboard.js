@@ -51,7 +51,6 @@ const procesoCodigo = document.getElementById('procesoCodigo');
 const procesoPrioridad = document.getElementById('procesoPrioridad');
 const procesoEstado = document.getElementById('procesoEstado');
 const procesoDescripcion = document.getElementById('procesoDescripcion');
-const procesoNotas = document.getElementById('procesoNotas');
 const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('fileInput');
 const documentosLista = document.getElementById('documentosLista');
@@ -254,7 +253,6 @@ function abrirNuevoProceso() {
     procesoEstado.value = 'pendiente';
     procesoPrioridad.value = 'normal';
     procesoDescripcion.value = '';
-    procesoNotas.value = '';
     documentosLista.innerHTML = '<p class="text-secondary text-small">No hay documentos subidos.</p>';
     archivosSeleccionados = [];
     procesoPanel.style.right = '0';
@@ -282,8 +280,7 @@ window.editarProceso = async function(procesoId) {
         procesoEstado.value = proceso.estado || 'pendiente';
         procesoPrioridad.value = proceso.prioridad || 'normal';
         procesoDescripcion.value = proceso.descripcion || '';
-        procesoNotas.value = proceso.notas_internas || '';
-
+        
         await cargarDocumentosProceso(procesoId);
 
         procesoPanel.style.right = '0';
@@ -589,7 +586,6 @@ if (procesoForm) {
             prioridad: procesoPrioridad.value,
             estado: procesoEstado.value,
             descripcion: procesoDescripcion.value.trim(),
-            notas_internas: procesoNotas.value.trim(),
         };
 
         try {
