@@ -12,7 +12,8 @@ export default function handler(req, res) {
     VITE_RECAPTCHA_ACTION: process.env.VITE_RECAPTCHA_ACTION || 'registro_usuario',
     VITE_VERIFY_RECAPTCHA_URL: process.env.VITE_VERIFY_RECAPTCHA_URL,
     VITE_GET_TELEGRAM_ID_URL: process.env.VITE_GET_TELEGRAM_ID_URL,
-    VITE_VALIDAR_TOKEN_URL: process.env.VITE_VALIDAR_TOKEN_URL  // ✅ ¡ESTA FALTA!
+    VITE_VALIDAR_TOKEN_URL: process.env.VITE_VALIDAR_TOKEN_URL,  
+    VITE_DRIVE_OPERATIONS_URL: process.env.VITE_DRIVE_OPERATIONS_URL
   };
 
   const missing = Object.keys(env).filter(key => !env[key]);
