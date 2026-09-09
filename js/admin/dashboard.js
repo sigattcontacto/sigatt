@@ -723,6 +723,9 @@ function mostrarStatus(texto, tipo = 'info') {
 // ============================================
 async function init() {
     try {
+
+        supabase = getSupabase();
+        
         const session = await protegerRuta();
         if (!session) return;
 
@@ -735,8 +738,6 @@ async function init() {
         if (user) {
             userName.textContent = user.nombres_apellidos || 'Admin';
         }
-
-        supabase = getSupabase();
 
         // Obtener URL de Drive Operations desde variables de entorno
         const env = await import('../config-loader.js').then(m => m.loadEnv());
