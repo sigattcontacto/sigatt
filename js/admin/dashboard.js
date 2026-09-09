@@ -15,6 +15,7 @@ let documentos = {};
 let currentProcesoId = null;
 let archivosSeleccionados = [];
 let userNombres = {};
+let DRIVE_OPERATIONS_URL = null;
 
 // ============================================
 // DOM ELEMENTS
@@ -67,6 +68,28 @@ let modalAction = null;
 let modalData = null;
 
 // ============================================
+// FUNCIÓN: LLAMAR A DRIVE OPERATIONS
+// ============================================
+async function callDriveOperations(action, data) {
+    try {
+        const response = await fetch(DRIVE_OPERATIONS_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action, ...data }),
+        });
+
+        const result = await response.json();
+        if (!result.success) {
+            throw new Error(result.error || 'Error en operación de Drive');
+        }
+        return result;
+    } catch (error) {
+        console.error(`❌ Error en ${action}:`, error);
+        throw error;
+    }
+}
+
+// ============================================
 // FUNCIÓN: CARGAR USUARIOS
 // ============================================
 async function cargarUsuarios() {
@@ -80,13 +103,11 @@ async function cargarUsuarios() {
         if (error) throw error;
         usuarios = data || [];
 
-        // Crear mapa de nombres para acceso rápido
         userNombres = {};
         usuarios.forEach(u => {
             userNombres[u.user_id] = u.nombres_apellidos;
         });
 
-        // Llenar select de usuarios
         procesoUsuario.innerHTML = '<option value="">Seleccionar usuario...</option>';
         usuarios.forEach(u => {
             const option = document.createElement('option');
@@ -97,6 +118,7 @@ async function cargarUsuarios() {
 
     } catch (error) {
         console.error('❌ Error cargando usuarios:', error);
+        mostrarStatus('⚠️ Error al cargar usuarios', 'error');
     }
 }
 
@@ -116,7 +138,6 @@ async function cargarProcesos() {
         filteredProcesos = [...procesos];
         currentPage = 1;
 
-        // Estadísticas
         const total = procesos.length;
         const activosCount = procesos.filter(p => p.estado === 'activo' || p.estado === 'en_revision').length;
         const completadosCount = procesos.filter(p => p.estado === 'completado').length;
@@ -125,9 +146,7 @@ async function cargarProcesos() {
         activos.textContent = activosCount;
         completados.textContent = completadosCount;
 
-        // Contar documentos
         await contarDocumentos();
-
         renderTabla();
 
     } catch (error) {
@@ -153,7 +172,7 @@ async function contarDocumentos() {
 }
 
 // ============================================
-// FUNCIÓN: RENDERIZAR TABLA (CORREGIDA)
+// FUNCIÓN: RENDERIZAR TABLA
 // ============================================
 function renderTabla() {
     const searchTerm = searchInput?.value?.toLowerCase() || '';
@@ -192,7 +211,6 @@ function renderTabla() {
         return;
     }
 
-    // ✅ Usar userNombres en lugar de await dentro de la plantilla
     tableBody.innerHTML = pageData.map(p => {
         const estadoEmoji = p.estado === 'completado' ? '✅' : 
                            p.estado === 'activo' ? '🔄' : 
@@ -269,7 +287,6 @@ window.editarProceso = async function(procesoId) {
         procesoDescripcion.value = proceso.descripcion || '';
         procesoNotas.value = proceso.notas_internas || '';
 
-        // Cargar documentos del proceso
         await cargarDocumentosProceso(procesoId);
 
         procesoPanel.style.right = '0';
@@ -330,7 +347,7 @@ function renderDocumentos(procesoId) {
 }
 
 // ============================================
-// FUNCIÓN: SUBIR DOCUMENTOS
+// FUNCIÓN: SUBIR DOCUMENTOS (CON DRIVE)
 // ============================================
 async function subirDocumentos(procesoId, files) {
     if (!procesoId) {
@@ -338,25 +355,52 @@ async function subirDocumentos(procesoId, files) {
         return;
     }
 
+    // Obtener el proceso para conocer el código
+    const { data: proceso, error } = await supabase
+        .from('procesos')
+        .select('codigo_proceso')
+        .eq('procesos_id', procesoId)
+        .single();
+
+    if (error || !proceso) {
+        mostrarStatus('⚠️ Error obteniendo el proceso.', 'error');
+        return;
+    }
+
     for (const file of files) {
-        const docData = {
-            procesos_id: procesoId,
-            name_documento: file.name,
-            documento: `https://drive.google.com/file/d/${file.name}`,
-            tamanio_bytes: file.size,
-            mime_type: file.type,
-            extension: file.name.split('.').pop(),
-            es_publico: true,
-            subido_por: 'admin'
-        };
+        try {
+            // Subir archivo a Google Drive
+            const driveResult = await callDriveOperations('upload-file', {
+                folderName: proceso.codigo_proceso,
+                file: await file.arrayBuffer(),
+                fileName: file.name,
+                mimeType: file.type || 'application/octet-stream'
+            });
 
-        const { data, error } = await supabase
-            .from('info')
-            .insert([docData])
-            .select();
+            // Guardar en la base de datos
+            const { data, error: dbError } = await supabase
+                .from('info')
+                .insert({
+                    procesos_id: procesoId,
+                    name_documento: file.name,
+                    documento: driveResult.webViewLink,
+                    drive_file_id: driveResult.fileId,
+                    tamanio_bytes: file.size,
+                    mime_type: file.type,
+                    extension: file.name.split('.').pop(),
+                    es_publico: true,
+                    subido_por: 'admin'
+                })
+                .select();
 
-        if (error) {
-            console.error('❌ Error subiendo documento:', error);
+            if (dbError) {
+                console.error('❌ Error guardando documento en BD:', dbError);
+                mostrarStatus(`⚠️ Error guardando ${file.name}`, 'error');
+            }
+
+        } catch (error) {
+            console.error(`❌ Error subiendo ${file.name}:`, error);
+            mostrarStatus(`⚠️ Error subiendo ${file.name}: ${error.message}`, 'error');
         }
     }
 
@@ -365,7 +409,7 @@ async function subirDocumentos(procesoId, files) {
 }
 
 // ============================================
-// FUNCIÓN: ELIMINAR DOCUMENTO
+// FUNCIÓN: ELIMINAR DOCUMENTO (CON DRIVE)
 // ============================================
 window.eliminarDocumento = function(infoId) {
     modalTitle.textContent = '🗑️ Eliminar Documento';
@@ -401,6 +445,21 @@ async function ejecutarAccion() {
         modalConfirmBtn.textContent = 'Procesando...';
 
         if (modalAction === 'eliminar_documento') {
+            // Obtener el drive_file_id antes de eliminar
+            const { data: doc, error: getError } = await supabase
+                .from('info')
+                .select('drive_file_id')
+                .eq('info_id', modalData.infoId)
+                .single();
+
+            if (getError) throw getError;
+
+            // Eliminar de Google Drive
+            if (doc?.drive_file_id) {
+                await callDriveOperations('delete-file', { fileId: doc.drive_file_id });
+            }
+
+            // Eliminar de la base de datos
             const { error } = await supabase
                 .from('info')
                 .delete()
@@ -412,6 +471,24 @@ async function ejecutarAccion() {
         }
 
         if (modalAction === 'eliminar_proceso') {
+            // Eliminar documentos de Drive asociados al proceso
+            const { data: docs, error: docsError } = await supabase
+                .from('info')
+                .select('drive_file_id')
+                .eq('procesos_id', modalData.procesoId);
+
+            if (!docsError && docs) {
+                for (const doc of docs) {
+                    if (doc.drive_file_id) {
+                        try {
+                            await callDriveOperations('delete-file', { fileId: doc.drive_file_id });
+                        } catch (e) {
+                            console.warn(`⚠️ No se pudo eliminar archivo ${doc.drive_file_id}:`, e);
+                        }
+                    }
+                }
+            }
+
             const { error } = await supabase
                 .from('procesos')
                 .delete()
@@ -453,8 +530,6 @@ modal.addEventListener('click', (e) => {
 // ============================================
 if (nuevoProcesoBtn) {
     nuevoProcesoBtn.addEventListener('click', abrirNuevoProceso);
-} else {
-    console.warn('⚠️ Botón "Nuevo Proceso" no encontrado');
 }
 
 // ============================================
@@ -523,23 +598,40 @@ if (procesoForm) {
         };
 
         try {
+            let procesoIdResult;
+
             if (procesoId.value) {
-                // Actualizar
+                // Actualizar proceso
                 const { error } = await supabase
                     .from('procesos')
                     .update(data)
                     .eq('procesos_id', procesoId.value);
 
                 if (error) throw error;
+                procesoIdResult = procesoId.value;
                 mostrarStatus('✅ Proceso actualizado correctamente', 'exito');
             } else {
-                // Crear
-                const { error } = await supabase
+                // Crear proceso
+                const { data: newProceso, error } = await supabase
                     .from('procesos')
-                    .insert([data]);
+                    .insert([data])
+                    .select()
+                    .single();
 
                 if (error) throw error;
+                procesoIdResult = newProceso.procesos_id;
                 mostrarStatus('✅ Proceso creado correctamente', 'exito');
+            }
+
+            // Crear carpeta en Google Drive
+            try {
+                await callDriveOperations('create-folder', {
+                    folderName: data.codigo_proceso
+                });
+                console.log(`📁 Carpeta creada para: ${data.codigo_proceso}`);
+            } catch (driveError) {
+                console.warn('⚠️ Error creando carpeta en Drive:', driveError);
+                mostrarStatus('⚠️ Proceso guardado, pero hubo error al crear la carpeta', 'warning');
             }
 
             await cargarProcesos();
@@ -645,6 +737,14 @@ async function init() {
         }
 
         supabase = getSupabase();
+
+        // Obtener URL de Drive Operations desde variables de entorno
+        const env = await import('../config-loader.js').then(m => m.loadEnv());
+        DRIVE_OPERATIONS_URL = env.VITE_DRIVE_OPERATIONS_URL;
+
+        if (!DRIVE_OPERATIONS_URL) {
+            console.warn('⚠️ VITE_DRIVE_OPERATIONS_URL no configurada');
+        }
 
         await cargarUsuarios();
         await cargarProcesos();
