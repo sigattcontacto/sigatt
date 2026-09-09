@@ -50,7 +50,6 @@ const procesoUsuario = document.getElementById('procesoUsuario');
 const procesoCodigo = document.getElementById('procesoCodigo');
 const procesoPrioridad = document.getElementById('procesoPrioridad');
 const procesoEstado = document.getElementById('procesoEstado');
-const procesoFechaLimite = document.getElementById('procesoFechaLimite');
 const procesoDescripcion = document.getElementById('procesoDescripcion');
 const procesoNotas = document.getElementById('procesoNotas');
 const dropzone = document.getElementById('dropzone');
@@ -254,7 +253,6 @@ function abrirNuevoProceso() {
     procesoUsuario.value = '';
     procesoEstado.value = 'pendiente';
     procesoPrioridad.value = 'normal';
-    procesoFechaLimite.value = '';
     procesoDescripcion.value = '';
     procesoNotas.value = '';
     documentosLista.innerHTML = '<p class="text-secondary text-small">No hay documentos subidos.</p>';
@@ -283,7 +281,6 @@ window.editarProceso = async function(procesoId) {
         procesoUsuario.value = proceso.user_id || '';
         procesoEstado.value = proceso.estado || 'pendiente';
         procesoPrioridad.value = proceso.prioridad || 'normal';
-        procesoFechaLimite.value = proceso.fecha_limite ? proceso.fecha_limite.split('T')[0] : '';
         procesoDescripcion.value = proceso.descripcion || '';
         procesoNotas.value = proceso.notas_internas || '';
 
@@ -591,7 +588,6 @@ if (procesoForm) {
             codigo_proceso: procesoCodigo.value.trim(),
             prioridad: procesoPrioridad.value,
             estado: procesoEstado.value,
-            fecha_limite: procesoFechaLimite.value || null,
             descripcion: procesoDescripcion.value.trim(),
             notas_internas: procesoNotas.value.trim(),
         };
