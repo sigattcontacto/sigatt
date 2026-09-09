@@ -594,7 +594,6 @@ if (procesoForm) {
             fecha_limite: procesoFechaLimite.value || null,
             descripcion: procesoDescripcion.value.trim(),
             notas_internas: procesoNotas.value.trim(),
-            creado_por: 'admin'
         };
 
         try {
