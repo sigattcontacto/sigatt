@@ -17,6 +17,10 @@ let archivosSeleccionados = [];
 let userNombres = {};
 let DRIVE_OPERATIONS_URL = null;
 let archivosPendientes = [];
+let currentProcesoId = null;
+let archivosPendientes = [];  
+let adminUserId = null;       
+let adminNombre = null;     
 
 // ============================================
 // DOM ELEMENTS
@@ -240,9 +244,6 @@ function renderTabla() {
     }).join('');
 }
 
-// ============================================
-// FUNCIÓN: ABRIR PANEL NUEVO PROCESO
-// ============================================
 function abrirNuevoProceso() {
     currentProcesoId = null;
     archivosPendientes = [];  // ✅ Limpiar archivos pendientes
@@ -255,14 +256,14 @@ function abrirNuevoProceso() {
     procesoEstado.value = 'pendiente';
     procesoPrioridad.value = 'normal';
     procesoDescripcion.value = '';
-    documentosLista.innerHTML = '<p class="text-secondary text-small">No hay documentos subidos.</p>';
+    documentosLista.innerHTML = '<p class="text-secondary text-small">No hay documentos pendientes de subir.</p>';
     procesoPanel.style.right = '0';
 }
 
 // ============================================
 // FUNCIÓN: ABRIR PANEL EDITAR PROCESO (CORREGIDA)
 // ============================================
-window.editarProceso = async function(procesoIdParam) {  // ✅ Renombrado el parámetro
+window.editarProceso = async function(procesoIdParam) {
     try {
         const { data: proceso, error } = await supabase
             .from('procesos')
@@ -273,9 +274,9 @@ window.editarProceso = async function(procesoIdParam) {  // ✅ Renombrado el pa
         if (error) throw error;
 
         currentProcesoId = procesoIdParam;
-        procesoPanelTitulo.textContent = `✏️ Editar: ${proceso.codigo_proceso}`;
+        archivosPendientes = [];  // ✅ Limpiar archivos pendientes
         
-        // ✅ Ahora "procesoId" es el elemento DOM, no el parámetro
+        procesoPanelTitulo.textContent = `✏️ Editar: ${proceso.codigo_proceso}`;
         procesoId.value = proceso.procesos_id;
         procesoCodigo.value = proceso.codigo_proceso;
         procesoCodigo.disabled = true;
@@ -284,6 +285,7 @@ window.editarProceso = async function(procesoIdParam) {  // ✅ Renombrado el pa
         procesoPrioridad.value = proceso.prioridad || 'normal';
         procesoDescripcion.value = proceso.descripcion || '';
 
+        // Cargar documentos existentes
         await cargarDocumentosProceso(procesoIdParam);
 
         procesoPanel.style.right = '0';
@@ -344,7 +346,7 @@ function renderDocumentos(procesoId) {
 }
 
 // ============================================
-// FUNCIÓN: SUBIR DOCUMENTOS (CORREGIDA)
+// FUNCIÓN: SUBIR DOCUMENTOS (CON adminUserId REAL)
 // ============================================
 async function subirDocumentos(procesoId, files) {
     if (!procesoId) {
@@ -366,18 +368,18 @@ async function subirDocumentos(procesoId, files) {
 
     for (const file of files) {
         try {
-            // ✅ Convertir el archivo a base64
+            // Convertir el archivo a base64
             const base64 = await fileToBase64(file);
 
             // Subir archivo a Google Drive
             const driveResult = await callDriveOperations('upload-file', {
                 folderName: proceso.codigo_proceso,
-                file: base64,  // ✅ Enviar como base64
+                file: base64,
                 fileName: file.name,
                 mimeType: file.type || 'application/octet-stream'
             });
 
-            // Guardar en la base de datos
+            // Guardar en la base de datos (con adminUserId real)
             const { data, error: dbError } = await supabase
                 .from('info')
                 .insert({
@@ -389,7 +391,7 @@ async function subirDocumentos(procesoId, files) {
                     mime_type: file.type,
                     extension: file.name.split('.').pop(),
                     es_publico: true,
-                    subido_por: 'admin'
+                    subido_por: adminUserId  // ✅ UUID real del admin
                 })
                 .select();
 
@@ -564,7 +566,7 @@ if (cancelarProcesoBtn) {
 }
 
 // ============================================
-// EVENTO: DROPZONE (CORREGIDO)
+// EVENTO: DROPZONE (ACUMULAR ARCHIVOS)
 // ============================================
 if (dropzone) {
     dropzone.addEventListener('click', () => fileInput?.click());
@@ -587,15 +589,10 @@ if (dropzone) {
         
         const files = Array.from(e.dataTransfer.files);
         
-        if (currentProcesoId) {
-            // Proceso existente → subir directamente
-            subirDocumentos(currentProcesoId, files);
-        } else {
-            // Proceso nuevo → acumular para después de guardar
-            archivosPendientes = [...archivosPendientes, ...files];
-            mostrarArchivosPendientes();
-            mostrarStatus(`📎 ${archivosPendientes.length} archivo(s) listo(s) para subir al guardar`, 'info');
-        }
+        // ✅ Acumular archivos (NO subir todavía)
+        archivosPendientes = [...archivosPendientes, ...files];
+        mostrarArchivosPendientes();
+        mostrarStatus(`📎 ${archivosPendientes.length} archivo(s) listo(s) para subir al guardar`, 'info');
     });
 }
 
@@ -603,17 +600,11 @@ if (fileInput) {
     fileInput.addEventListener('change', (e) => {
         const files = Array.from(e.target.files);
         
-        if (currentProcesoId) {
-            // Proceso existente → subir directamente
-            subirDocumentos(currentProcesoId, files);
-            fileInput.value = '';
-        } else {
-            // Proceso nuevo → acumular para después de guardar
-            archivosPendientes = [...archivosPendientes, ...files];
-            mostrarArchivosPendientes();
-            mostrarStatus(`📎 ${archivosPendientes.length} archivo(s) listo(s) para subir al guardar`, 'info');
-            fileInput.value = '';
-        }
+        // ✅ Acumular archivos (NO subir todavía)
+        archivosPendientes = [...archivosPendientes, ...files];
+        mostrarArchivosPendientes();
+        mostrarStatus(`📎 ${archivosPendientes.length} archivo(s) listo(s) para subir al guardar`, 'info');
+        fileInput.value = '';
     });
 }
 
@@ -622,7 +613,7 @@ if (fileInput) {
 // ============================================
 function mostrarArchivosPendientes() {
     if (archivosPendientes.length === 0) {
-        documentosLista.innerHTML = '<p class="text-secondary text-small">No hay documentos subidos.</p>';
+        documentosLista.innerHTML = '<p class="text-secondary text-small">No hay documentos pendientes de subir.</p>';
         return;
     }
 
@@ -634,7 +625,7 @@ function mostrarArchivosPendientes() {
                     ${(file.size / 1024).toFixed(1)} KB
                 </span>
                 <span class="text-small text-secondary" style="margin-left: var(--spacing-sm); color: var(--sigatt-warning);">
-                    (pendiente de guardar)
+                    (pendiente)
                 </span>
             </div>
             <button class="btn-action btn-danger" onclick="eliminarArchivoPendiente(${index})">🗑️</button>
@@ -690,23 +681,11 @@ procesoForm.addEventListener('submit', async (e) => {
             mostrarStatus('✅ Proceso creado correctamente', 'exito');
         }
 
-        // ✅ Crear carpeta en Google Drive (solo si es nuevo)
-        if (!procesoId.value) {
-            try {
-                await callDriveOperations('create-folder', {
-                    folderName: data.codigo_proceso
-                });
-                console.log(`📁 Carpeta creada para: ${data.codigo_proceso}`);
-            } catch (driveError) {
-                console.warn('⚠️ Error creando carpeta en Drive:', driveError);
-            }
-
-            // ✅ Subir archivos pendientes (si los hay)
-            if (archivosPendientes.length > 0) {
-                console.log(`📤 Subiendo ${archivosPendientes.length} archivos pendientes...`);
-                await subirDocumentos(procesoIdResult, archivosPendientes);
-                archivosPendientes = [];
-            }
+        // ✅ Subir archivos pendientes (si los hay)
+        if (archivosPendientes.length > 0) {
+            console.log(`📤 Subiendo ${archivosPendientes.length} archivos pendientes...`);
+            await subirDocumentos(procesoIdResult, archivosPendientes);
+            archivosPendientes = [];
         }
 
         await cargarProcesos();
@@ -797,11 +776,13 @@ function mostrarStatus(texto, tipo = 'info') {
 // ============================================
 async function init() {
     try {
-
         supabase = getSupabase();
-        
+
         const session = await protegerRuta();
         if (!session) return;
+
+        // ✅ Guardar el UUID del admin logueado
+        adminUserId = session.user.id;
 
         const { data: user } = await supabase
             .from('usuarios')
@@ -810,7 +791,8 @@ async function init() {
             .single();
 
         if (user) {
-            userName.textContent = user.nombres_apellidos || 'Admin';
+            adminNombre = user.nombres_apellidos || 'Admin';
+            userName.textContent = adminNombre;
         }
 
         // Obtener URL de Drive Operations desde variables de entorno
