@@ -16,6 +16,7 @@ let currentProcesoId = null;
 let archivosSeleccionados = [];
 let userNombres = {};
 let DRIVE_OPERATIONS_URL = null;
+let archivosPendientes = [];
 
 // ============================================
 // DOM ELEMENTS
@@ -244,6 +245,7 @@ function renderTabla() {
 // ============================================
 function abrirNuevoProceso() {
     currentProcesoId = null;
+    archivosPendientes = [];  // ✅ Limpiar archivos pendientes
     procesoPanelTitulo.textContent = '📝 Nuevo Proceso';
     procesoForm.reset();
     procesoId.value = '';
@@ -254,7 +256,6 @@ function abrirNuevoProceso() {
     procesoPrioridad.value = 'normal';
     procesoDescripcion.value = '';
     documentosLista.innerHTML = '<p class="text-secondary text-small">No hay documentos subidos.</p>';
-    archivosSeleccionados = [];
     procesoPanel.style.right = '0';
 }
 
@@ -343,7 +344,7 @@ function renderDocumentos(procesoId) {
 }
 
 // ============================================
-// FUNCIÓN: SUBIR DOCUMENTOS (CON DRIVE)
+// FUNCIÓN: SUBIR DOCUMENTOS (CORREGIDA)
 // ============================================
 async function subirDocumentos(procesoId, files) {
     if (!procesoId) {
@@ -365,10 +366,13 @@ async function subirDocumentos(procesoId, files) {
 
     for (const file of files) {
         try {
+            // ✅ Convertir el archivo a base64
+            const base64 = await fileToBase64(file);
+
             // Subir archivo a Google Drive
             const driveResult = await callDriveOperations('upload-file', {
                 folderName: proceso.codigo_proceso,
-                file: await file.arrayBuffer(),
+                file: base64,  // ✅ Enviar como base64
                 fileName: file.name,
                 mimeType: file.type || 'application/octet-stream'
             });
@@ -402,6 +406,23 @@ async function subirDocumentos(procesoId, files) {
 
     await cargarDocumentosProceso(procesoId);
     mostrarStatus('✅ Documentos subidos correctamente', 'exito');
+}
+
+// ============================================
+// FUNCIÓN AUXILIAR: CONVERTIR ARCHIVO A BASE64
+// ============================================
+function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            // El resultado tiene el formato "data:application/pdf;base64,XXXX"
+            // Extraer solo la parte base64
+            const base64 = reader.result.split(',')[1];
+            resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
 }
 
 // ============================================
@@ -543,80 +564,134 @@ if (cancelarProcesoBtn) {
 }
 
 // ============================================
-// EVENTO: DROPZONE
+// EVENTO: DROPZONE (CORREGIDO)
 // ============================================
 if (dropzone) {
     dropzone.addEventListener('click', () => fileInput?.click());
+    
     dropzone.addEventListener('dragover', (e) => {
         e.preventDefault();
         dropzone.style.borderColor = 'var(--sigatt-blue)';
         dropzone.style.background = 'var(--sigatt-light-blue)';
     });
+    
     dropzone.addEventListener('dragleave', () => {
         dropzone.style.borderColor = 'var(--sigatt-border)';
         dropzone.style.background = 'transparent';
     });
+    
     dropzone.addEventListener('drop', (e) => {
         e.preventDefault();
         dropzone.style.borderColor = 'var(--sigatt-border)';
         dropzone.style.background = 'transparent';
-        if (currentProcesoId && e.dataTransfer.files.length > 0) {
-            subirDocumentos(currentProcesoId, e.dataTransfer.files);
+        
+        const files = Array.from(e.dataTransfer.files);
+        
+        if (currentProcesoId) {
+            // Proceso existente → subir directamente
+            subirDocumentos(currentProcesoId, files);
+        } else {
+            // Proceso nuevo → acumular para después de guardar
+            archivosPendientes = [...archivosPendientes, ...files];
+            mostrarArchivosPendientes();
+            mostrarStatus(`📎 ${archivosPendientes.length} archivo(s) listo(s) para subir al guardar`, 'info');
         }
     });
 }
 
 if (fileInput) {
     fileInput.addEventListener('change', (e) => {
-        if (currentProcesoId && e.target.files.length > 0) {
-            subirDocumentos(currentProcesoId, e.target.files);
+        const files = Array.from(e.target.files);
+        
+        if (currentProcesoId) {
+            // Proceso existente → subir directamente
+            subirDocumentos(currentProcesoId, files);
+            fileInput.value = '';
+        } else {
+            // Proceso nuevo → acumular para después de guardar
+            archivosPendientes = [...archivosPendientes, ...files];
+            mostrarArchivosPendientes();
+            mostrarStatus(`📎 ${archivosPendientes.length} archivo(s) listo(s) para subir al guardar`, 'info');
             fileInput.value = '';
         }
     });
 }
 
 // ============================================
-// EVENTO: GUARDAR PROCESO
+// FUNCIÓN: MOSTRAR ARCHIVOS PENDIENTES
 // ============================================
-if (procesoForm) {
-    procesoForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
+function mostrarArchivosPendientes() {
+    if (archivosPendientes.length === 0) {
+        documentosLista.innerHTML = '<p class="text-secondary text-small">No hay documentos subidos.</p>';
+        return;
+    }
 
-        const data = {
-            user_id: procesoUsuario.value || null,
-            codigo_proceso: procesoCodigo.value.trim(),
-            prioridad: procesoPrioridad.value,
-            estado: procesoEstado.value,
-            descripcion: procesoDescripcion.value.trim(),
-        };
+    documentosLista.innerHTML = archivosPendientes.map((file, index) => `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--spacing-sm); border-bottom: 1px solid var(--sigatt-border);">
+            <div>
+                <strong style="font-size: 0.9rem;">📎 ${file.name}</strong>
+                <span class="text-small text-secondary" style="margin-left: var(--spacing-sm);">
+                    ${(file.size / 1024).toFixed(1)} KB
+                </span>
+                <span class="text-small text-secondary" style="margin-left: var(--spacing-sm); color: var(--sigatt-warning);">
+                    (pendiente de guardar)
+                </span>
+            </div>
+            <button class="btn-action btn-danger" onclick="eliminarArchivoPendiente(${index})">🗑️</button>
+        </div>
+    `).join('');
+}
 
-        try {
-            let procesoIdResult;
+// ============================================
+// FUNCIÓN: ELIMINAR ARCHIVO PENDIENTE
+// ============================================
+window.eliminarArchivoPendiente = function(index) {
+    archivosPendientes.splice(index, 1);
+    mostrarArchivosPendientes();
+};
 
-            if (procesoId.value) {
-                // Actualizar proceso
-                const { error } = await supabase
-                    .from('procesos')
-                    .update(data)
-                    .eq('procesos_id', procesoId.value);
+// ============================================
+// EVENTO: GUARDAR PROCESO (CON SUBIDA DE ARCHIVOS)
+// ============================================
+procesoForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
 
-                if (error) throw error;
-                procesoIdResult = procesoId.value;
-                mostrarStatus('✅ Proceso actualizado correctamente', 'exito');
-            } else {
-                // Crear proceso
-                const { data: newProceso, error } = await supabase
-                    .from('procesos')
-                    .insert([data])
-                    .select()
-                    .single();
+    const data = {
+        user_id: procesoUsuario.value || null,
+        codigo_proceso: procesoCodigo.value.trim(),
+        prioridad: procesoPrioridad.value,
+        estado: procesoEstado.value,
+        descripcion: procesoDescripcion.value.trim()
+    };
 
-                if (error) throw error;
-                procesoIdResult = newProceso.procesos_id;
-                mostrarStatus('✅ Proceso creado correctamente', 'exito');
-            }
+    try {
+        let procesoIdResult;
 
-            // Crear carpeta en Google Drive
+        if (procesoId.value) {
+            // Actualizar proceso existente
+            const { error } = await supabase
+                .from('procesos')
+                .update(data)
+                .eq('procesos_id', procesoId.value);
+
+            if (error) throw error;
+            procesoIdResult = procesoId.value;
+            mostrarStatus('✅ Proceso actualizado correctamente', 'exito');
+        } else {
+            // Crear nuevo proceso
+            const { data: newProceso, error } = await supabase
+                .from('procesos')
+                .insert([data])
+                .select()
+                .single();
+
+            if (error) throw error;
+            procesoIdResult = newProceso.procesos_id;
+            mostrarStatus('✅ Proceso creado correctamente', 'exito');
+        }
+
+        // ✅ Crear carpeta en Google Drive (solo si es nuevo)
+        if (!procesoId.value) {
             try {
                 await callDriveOperations('create-folder', {
                     folderName: data.codigo_proceso
@@ -624,18 +699,24 @@ if (procesoForm) {
                 console.log(`📁 Carpeta creada para: ${data.codigo_proceso}`);
             } catch (driveError) {
                 console.warn('⚠️ Error creando carpeta en Drive:', driveError);
-                mostrarStatus('⚠️ Proceso guardado, pero hubo error al crear la carpeta', 'warning');
             }
 
-            await cargarProcesos();
-            cerrarProcesoPanel();
-
-        } catch (error) {
-            console.error('❌ Error guardando proceso:', error);
-            mostrarStatus('❌ Error al guardar: ' + error.message, 'error');
+            // ✅ Subir archivos pendientes (si los hay)
+            if (archivosPendientes.length > 0) {
+                console.log(`📤 Subiendo ${archivosPendientes.length} archivos pendientes...`);
+                await subirDocumentos(procesoIdResult, archivosPendientes);
+                archivosPendientes = [];
+            }
         }
-    });
-}
+
+        await cargarProcesos();
+        cerrarProcesoPanel();
+
+    } catch (error) {
+        console.error('❌ Error guardando proceso:', error);
+        mostrarStatus('❌ Error al guardar: ' + error.message, 'error');
+    }
+});
 
 // ============================================
 // EVENTOS: REFRESCAR
