@@ -259,20 +259,22 @@ function abrirNuevoProceso() {
 }
 
 // ============================================
-// FUNCIÓN: ABRIR PANEL EDITAR PROCESO
+// FUNCIÓN: ABRIR PANEL EDITAR PROCESO (CORREGIDA)
 // ============================================
-window.editarProceso = async function(procesoId) {
+window.editarProceso = async function(procesoIdParam) {  // ✅ Renombrado el parámetro
     try {
         const { data: proceso, error } = await supabase
             .from('procesos')
             .select('*')
-            .eq('procesos_id', procesoId)
+            .eq('procesos_id', procesoIdParam)
             .single();
 
         if (error) throw error;
 
-        currentProcesoId = procesoId;
+        currentProcesoId = procesoIdParam;
         procesoPanelTitulo.textContent = `✏️ Editar: ${proceso.codigo_proceso}`;
+        
+        // ✅ Ahora "procesoId" es el elemento DOM, no el parámetro
         procesoId.value = proceso.procesos_id;
         procesoCodigo.value = proceso.codigo_proceso;
         procesoCodigo.disabled = true;
@@ -280,8 +282,8 @@ window.editarProceso = async function(procesoId) {
         procesoEstado.value = proceso.estado || 'pendiente';
         procesoPrioridad.value = proceso.prioridad || 'normal';
         procesoDescripcion.value = proceso.descripcion || '';
-        
-        await cargarDocumentosProceso(procesoId);
+
+        await cargarDocumentosProceso(procesoIdParam);
 
         procesoPanel.style.right = '0';
 
