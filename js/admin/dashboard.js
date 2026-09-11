@@ -11,22 +11,20 @@ let procesos = [];
 let filteredProcesos = [];
 let supabase = null;
 let usuarios = [];
-let documentos = {};
-let currentProcesoId = null;
-let archivosSeleccionados = [];
 let userNombres = {};
 let DRIVE_OPERATIONS_URL = null;
-let archivosPendientes = [];  
-let adminUserId = null;       
-let adminNombre = null;     
+let currentProcesoId = null;
+let adminUserId = null;
+let adminNombre = null;
 
 // ============================================
-// DOM ELEMENTS
+// DOM ELEMENTS - GENERALES
 // ============================================
 const statusMessage = document.getElementById('statusMessage');
 const logoutBtn = document.getElementById('logoutBtn');
 const refreshBtn = document.getElementById('refreshBtn');
 const userName = document.getElementById('userName');
+const nuevoProcesoBtn = document.getElementById('nuevoProcesoBtn');
 
 const totalProcesos = document.getElementById('totalProcesos');
 const activos = document.getElementById('activos');
@@ -41,24 +39,43 @@ const prevPageBtn = document.getElementById('prevPage');
 const nextPageBtn = document.getElementById('nextPage');
 const paginationInfo = document.getElementById('paginationInfo');
 
-// ===== PROCESO PANEL =====
-const procesoPanel = document.getElementById('procesoPanel');
-const cerrarProcesoPanelBtn = document.getElementById('cerrarProcesoPanelBtn');
-const cancelarProcesoBtn = document.getElementById('cancelarProcesoBtn');
-const nuevoProcesoBtn = document.getElementById('nuevoProcesoBtn');
-const procesoPanelTitulo = document.getElementById('procesoPanelTitulo');
-const procesoForm = document.getElementById('procesoForm');
-const procesoId = document.getElementById('procesoId');
-const procesoUsuario = document.getElementById('procesoUsuario');
-const procesoCodigo = document.getElementById('procesoCodigo');
-const procesoPrioridad = document.getElementById('procesoPrioridad');
-const procesoEstado = document.getElementById('procesoEstado');
-const procesoDescripcion = document.getElementById('procesoDescripcion');
-const dropzone = document.getElementById('dropzone');
-const fileInput = document.getElementById('fileInput');
-const documentosLista = document.getElementById('documentosLista');
+// ===== MODAL 1: NUEVO PROCESO =====
+const nuevoProcesoModal = document.getElementById('nuevoProcesoModal');
+const nuevoProcesoForm = document.getElementById('nuevoProcesoForm');
+const nuevoProcesoUsuario = document.getElementById('nuevoProcesoUsuario');
+const nuevoProcesoCodigo = document.getElementById('nuevoProcesoCodigo');
+const nuevoProcesoPrioridad = document.getElementById('nuevoProcesoPrioridad');
+const nuevoProcesoEstado = document.getElementById('nuevoProcesoEstado');
+const nuevoProcesoDescripcion = document.getElementById('nuevoProcesoDescripcion');
+const cerrarNuevoProcesoBtn = document.getElementById('cerrarNuevoProcesoBtn');
+const cancelarNuevoProcesoBtn = document.getElementById('cancelarNuevoProcesoBtn');
 
-// ===== MODAL =====
+// ===== MODAL 2: EDITAR PROCESO =====
+const editarProcesoModal = document.getElementById('editarProcesoModal');
+const editarProcesoForm = document.getElementById('editarProcesoForm');
+const editarProcesoId = document.getElementById('editarProcesoId');
+const editarProcesoTitulo = document.getElementById('editarProcesoTitulo');
+const editarProcesoCodigoDisplay = document.getElementById('editarProcesoCodigoDisplay');
+const editarProcesoUsuarioDisplay = document.getElementById('editarProcesoUsuarioDisplay');
+const editarProcesoFechaDisplay = document.getElementById('editarProcesoFechaDisplay');
+const editarProcesoDescripcion = document.getElementById('editarProcesoDescripcion');
+const editarProcesoEstado = document.getElementById('editarProcesoEstado');
+const editarProcesoPrioridad = document.getElementById('editarProcesoPrioridad');
+const cerrarEditarProcesoBtn = document.getElementById('cerrarEditarProcesoBtn');
+const cancelarEditarProcesoBtn = document.getElementById('cancelarEditarProcesoBtn');
+const guardarCambiosProcesoBtn = document.getElementById('guardarCambiosProcesoBtn');
+
+// Sub-formulario de documento
+const agregarDocumentoBtn = document.getElementById('agregarDocumentoBtn');
+const subFormularioDocumento = document.getElementById('subFormularioDocumento');
+const nuevoDocNombre = document.getElementById('nuevoDocNombre');
+const nuevoDocDescripcion = document.getElementById('nuevoDocDescripcion');
+const nuevoDocArchivo = document.getElementById('nuevoDocArchivo');
+const guardarDocumentoBtn = document.getElementById('guardarDocumentoBtn');
+const cancelarDocumentoBtn = document.getElementById('cancelarDocumentoBtn');
+const documentosTablaBody = document.getElementById('documentosTablaBody');
+
+// ===== MODAL DE CONFIRMACIÓN =====
 const modal = document.getElementById('confirmModal');
 const modalTitle = document.getElementById('modalTitle');
 const modalMessage = document.getElementById('modalMessage');
@@ -91,6 +108,21 @@ async function callDriveOperations(action, data) {
 }
 
 // ============================================
+// FUNCIÓN: CONVERTIR ARCHIVO A BASE64
+// ============================================
+function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const base64 = reader.result.split(',')[1];
+            resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
+// ============================================
 // FUNCIÓN: CARGAR USUARIOS
 // ============================================
 async function cargarUsuarios() {
@@ -109,12 +141,12 @@ async function cargarUsuarios() {
             userNombres[u.user_id] = u.nombres_apellidos;
         });
 
-        procesoUsuario.innerHTML = '<option value="">Seleccionar usuario...</option>';
+        nuevoProcesoUsuario.innerHTML = '<option value="">Seleccionar usuario...</option>';
         usuarios.forEach(u => {
             const option = document.createElement('option');
             option.value = u.user_id;
             option.textContent = `${u.nombres_apellidos} (${u.email})`;
-            procesoUsuario.appendChild(option);
+            nuevoProcesoUsuario.appendChild(option);
         });
 
     } catch (error) {
@@ -230,7 +262,7 @@ function renderTabla() {
                 <td>${p.prioridad || 'normal'}</td>
                 <td>${p.created_at ? new Date(p.created_at).toLocaleDateString('es-ES') : 'N/A'}</td>
                 <td style="text-align: center;">
-                    <button class="btn-action btn-info" onclick="editarProceso('${p.procesos_id}')">
+                    <button class="btn-action btn-info" onclick="abrirEditarProceso('${p.procesos_id}')">
                         ✏️ Editar
                     </button>
                     <button class="btn-action btn-danger" onclick="eliminarProceso('${p.procesos_id}')">
@@ -242,26 +274,72 @@ function renderTabla() {
     }).join('');
 }
 
+// ============================================
+// MODAL 1: ABRIR NUEVO PROCESO
+// ============================================
 function abrirNuevoProceso() {
-    currentProcesoId = null;
-    archivosPendientes = [];  // ✅ Limpiar archivos pendientes
-    procesoPanelTitulo.textContent = '📝 Nuevo Proceso';
-    procesoForm.reset();
-    procesoId.value = '';
-    procesoCodigo.value = '';
-    procesoCodigo.disabled = false;
-    procesoUsuario.value = '';
-    procesoEstado.value = 'pendiente';
-    procesoPrioridad.value = 'normal';
-    procesoDescripcion.value = '';
-    documentosLista.innerHTML = '<p class="text-secondary text-small">No hay documentos pendientes de subir.</p>';
-    procesoPanel.style.right = '0';
+    nuevoProcesoForm.reset();
+    nuevoProcesoUsuario.value = '';
+    nuevoProcesoCodigo.value = '';
+    nuevoProcesoPrioridad.value = 'normal';
+    nuevoProcesoEstado.value = 'pendiente';
+    nuevoProcesoDescripcion.value = '';
+    nuevoProcesoModal.style.display = 'flex';
 }
 
 // ============================================
-// FUNCIÓN: ABRIR PANEL EDITAR PROCESO (CORREGIDA)
+// MODAL 1: GUARDAR NUEVO PROCESO
 // ============================================
-window.editarProceso = async function(procesoIdParam) {
+nuevoProcesoForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const data = {
+        user_id: nuevoProcesoUsuario.value || null,
+        codigo_proceso: nuevoProcesoCodigo.value.trim(),
+        prioridad: nuevoProcesoPrioridad.value,
+        estado: nuevoProcesoEstado.value,
+        descripcion: nuevoProcesoDescripcion.value.trim()
+    };
+
+    if (!data.codigo_proceso) {
+        mostrarStatus('⚠️ El código del proceso es requerido', 'error');
+        return;
+    }
+
+    try {
+        // Crear proceso en Supabase
+        const { data: newProceso, error } = await supabase
+            .from('procesos')
+            .insert([data])
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        // Crear carpeta en Google Drive
+        try {
+            await callDriveOperations('create-folder', {
+                folderName: data.codigo_proceso
+            });
+            console.log(`📁 Carpeta creada para: ${data.codigo_proceso}`);
+        } catch (driveError) {
+            console.warn('⚠️ Error creando carpeta en Drive:', driveError);
+        }
+
+        mostrarStatus('✅ Proceso creado correctamente', 'exito');
+        nuevoProcesoModal.style.display = 'none';
+        await cargarProcesos();
+
+    } catch (error) {
+        console.error('❌ Error guardando proceso:', error);
+        mostrarStatus('❌ Error al guardar: ' + error.message, 'error');
+    }
+});
+
+// ============================================
+// MODAL 2: ABRIR EDITAR PROCESO
+// ============================================
+window.abrirEditarProceso = async function(procesoIdParam) {
     try {
         const { data: proceso, error } = await supabase
             .from('procesos')
@@ -272,21 +350,27 @@ window.editarProceso = async function(procesoIdParam) {
         if (error) throw error;
 
         currentProcesoId = procesoIdParam;
-        archivosPendientes = [];  // ✅ Limpiar archivos pendientes
-        
-        procesoPanelTitulo.textContent = `✏️ Editar: ${proceso.codigo_proceso}`;
-        procesoId.value = proceso.procesos_id;
-        procesoCodigo.value = proceso.codigo_proceso;
-        procesoCodigo.disabled = true;
-        procesoUsuario.value = proceso.user_id || '';
-        procesoEstado.value = proceso.estado || 'pendiente';
-        procesoPrioridad.value = proceso.prioridad || 'normal';
-        procesoDescripcion.value = proceso.descripcion || '';
 
-        // Cargar documentos existentes
+        // Llenar información no editable
+        editarProcesoTitulo.textContent = `✏️ Editar Proceso: ${proceso.codigo_proceso}`;
+        editarProcesoCodigoDisplay.textContent = proceso.codigo_proceso;
+        editarProcesoUsuarioDisplay.textContent = proceso.user_id ? (userNombres[proceso.user_id] || 'Sin asignar') : 'Sin asignar';
+        editarProcesoFechaDisplay.textContent = proceso.created_at ? new Date(proceso.created_at).toLocaleDateString('es-ES') : 'N/A';
+
+        // Llenar formulario
+        editarProcesoId.value = proceso.procesos_id;
+        editarProcesoDescripcion.value = proceso.descripcion || '';
+        editarProcesoEstado.value = proceso.estado || 'pendiente';
+        editarProcesoPrioridad.value = proceso.prioridad || 'normal';
+
+        // Cargar documentos
         await cargarDocumentosProceso(procesoIdParam);
 
-        procesoPanel.style.right = '0';
+        // Ocultar sub-formulario
+        subFormularioDocumento.style.display = 'none';
+
+        // Abrir modal
+        editarProcesoModal.style.display = 'flex';
 
     } catch (error) {
         console.error('❌ Error cargando proceso:', error);
@@ -295,7 +379,7 @@ window.editarProceso = async function(procesoIdParam) {
 };
 
 // ============================================
-// FUNCIÓN: CARGAR DOCUMENTOS DEL PROCESO
+// MODAL 2: CARGAR DOCUMENTOS DEL PROCESO
 // ============================================
 async function cargarDocumentosProceso(procesoId) {
     try {
@@ -307,8 +391,7 @@ async function cargarDocumentosProceso(procesoId) {
 
         if (error) throw error;
 
-        documentos[procesoId] = data || [];
-        renderDocumentos(procesoId);
+        renderDocumentos(data || []);
 
     } catch (error) {
         console.error('❌ Error cargando documentos:', error);
@@ -316,117 +399,166 @@ async function cargarDocumentosProceso(procesoId) {
 }
 
 // ============================================
-// FUNCIÓN: RENDERIZAR DOCUMENTOS
+// MODAL 2: RENDERIZAR DOCUMENTOS
 // ============================================
-function renderDocumentos(procesoId) {
-    const docs = documentos[procesoId] || [];
-    
+function renderDocumentos(docs) {
     if (docs.length === 0) {
-        documentosLista.innerHTML = '<p class="text-secondary text-small">No hay documentos subidos.</p>';
+        documentosTablaBody.innerHTML = `
+            <tr>
+                <td colspan="5" style="text-align: center; padding: var(--spacing-lg); color: var(--sigatt-text-secondary);">
+                    No hay documentos cargados.
+                </td>
+            </tr>
+        `;
         return;
     }
 
-    documentosLista.innerHTML = docs.map(doc => `
-        <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--spacing-sm); border-bottom: 1px solid var(--sigatt-border);">
-            <div>
-                <strong style="font-size: 0.9rem;">${doc.name_documento}</strong>
-                <span class="text-small text-secondary" style="margin-left: var(--spacing-sm);">
-                    ${doc.subido_en ? new Date(doc.subido_en).toLocaleDateString('es-ES') : ''}
-                </span>
-                ${doc.anotacion ? `<br><span class="text-small text-secondary">📝 ${doc.anotacion}</span>` : ''}
-            </div>
-            <div style="display: flex; gap: var(--spacing-xs);">
-                <button class="btn-action btn-info" onclick="verDocumentoAdmin('${doc.info_id}')">👁️</button>
-                <button class="btn-action btn-danger" onclick="eliminarDocumento('${doc.info_id}')">🗑️</button>
-            </div>
-        </div>
+    documentosTablaBody.innerHTML = docs.map((doc, index) => `
+        <tr>
+            <td>${index + 1}</td>
+            <td><strong>${doc.name_documento}</strong></td>
+            <td>${doc.anotacion || '<span class="text-secondary text-xs">Sin descripción</span>'}</td>
+            <td>
+                <a href="${doc.documento}" target="_blank" class="btn-action btn-info" style="text-decoration: none;">
+                    👁️ Ver
+                </a>
+            </td>
+            <td style="text-align: center;">
+                <button class="btn-action btn-danger" onclick="eliminarDocumento('${doc.info_id}')" style="padding: 4px 8px;">
+                    🗑️
+                </button>
+            </td>
+        </tr>
     `).join('');
 }
 
 // ============================================
-// FUNCIÓN: SUBIR DOCUMENTOS (CON adminUserId REAL)
+// MODAL 2: GUARDAR CAMBIOS DEL PROCESO
 // ============================================
-async function subirDocumentos(procesoId, files) {
+guardarCambiosProcesoBtn.addEventListener('click', async () => {
+    const procesoId = editarProcesoId.value;
+    if (!procesoId) return;
+
+    const data = {
+        descripcion: editarProcesoDescripcion.value.trim(),
+        estado: editarProcesoEstado.value,
+        prioridad: editarProcesoPrioridad.value
+    };
+
+    try {
+        const { error } = await supabase
+            .from('procesos')
+            .update(data)
+            .eq('procesos_id', procesoId);
+
+        if (error) throw error;
+
+        mostrarStatus('✅ Proceso actualizado correctamente', 'exito');
+        editarProcesoModal.style.display = 'none';
+        await cargarProcesos();
+
+    } catch (error) {
+        console.error('❌ Error actualizando proceso:', error);
+        mostrarStatus('❌ Error al actualizar: ' + error.message, 'error');
+    }
+});
+
+// ============================================
+// MODAL 2: MOSTRAR SUB-FORMULARIO DE DOCUMENTO
+// ============================================
+agregarDocumentoBtn.addEventListener('click', () => {
+    subFormularioDocumento.style.display = 'block';
+    nuevoDocNombre.value = '';
+    nuevoDocDescripcion.value = '';
+    nuevoDocArchivo.value = '';
+});
+
+// ============================================
+// MODAL 2: CANCELAR SUB-FORMULARIO
+// ============================================
+cancelarDocumentoBtn.addEventListener('click', () => {
+    subFormularioDocumento.style.display = 'none';
+});
+
+// ============================================
+// MODAL 2: GUARDAR DOCUMENTO (SUB-FORMULARIO)
+// ============================================
+guardarDocumentoBtn.addEventListener('click', async () => {
+    const procesoId = editarProcesoId.value;
+    const nombre = nuevoDocNombre.value.trim();
+    const descripcion = nuevoDocDescripcion.value.trim();
+    const archivo = nuevoDocArchivo.files[0];
+
     if (!procesoId) {
-        mostrarStatus('⚠️ Guarda el proceso primero antes de subir documentos.', 'error');
+        mostrarStatus('⚠️ No hay proceso seleccionado', 'error');
+        return;
+    }
+    if (!nombre) {
+        mostrarStatus('⚠️ El nombre del documento es requerido', 'error');
+        return;
+    }
+    if (!archivo) {
+        mostrarStatus('⚠️ Debes seleccionar un archivo', 'error');
         return;
     }
 
-    // Obtener el proceso para conocer el código
-    const { data: proceso, error } = await supabase
-        .from('procesos')
-        .select('codigo_proceso')
-        .eq('procesos_id', procesoId)
-        .single();
+    try {
+        // Obtener el código del proceso
+        const { data: proceso, error: procesoError } = await supabase
+            .from('procesos')
+            .select('codigo_proceso')
+            .eq('procesos_id', procesoId)
+            .single();
 
-    if (error || !proceso) {
-        mostrarStatus('⚠️ Error obteniendo el proceso.', 'error');
-        return;
-    }
+        if (procesoError) throw procesoError;
 
-    for (const file of files) {
-        try {
-            // Convertir el archivo a base64
-            const base64 = await fileToBase64(file);
+        // Convertir archivo a base64
+        const base64 = await fileToBase64(archivo);
 
-            // Subir archivo a Google Drive
-            const driveResult = await callDriveOperations('upload-file', {
-                folderName: proceso.codigo_proceso,
-                file: base64,
-                fileName: file.name,
-                mimeType: file.type || 'application/octet-stream'
+        // Subir a Google Drive
+        mostrarStatus('📤 Subiendo archivo a Drive...', 'info');
+        const driveResult = await callDriveOperations('upload-file', {
+            folderName: proceso.codigo_proceso,
+            file: base64,
+            fileName: archivo.name,
+            mimeType: archivo.type || 'application/octet-stream'
+        });
+
+        // Guardar en Supabase
+        const { error: dbError } = await supabase
+            .from('info')
+            .insert({
+                procesos_id: procesoId,
+                name_documento: nombre,
+                documento: driveResult.webViewLink,
+                drive_file_id: driveResult.fileId,
+                anotacion: descripcion || null,
+                tamanio_bytes: archivo.size,
+                mime_type: archivo.type,
+                extension: archivo.name.split('.').pop(),
+                es_publico: true,
+                subido_por: adminUserId
             });
 
-            // Guardar en la base de datos (con adminUserId real)
-            const { data, error: dbError } = await supabase
-                .from('info')
-                .insert({
-                    procesos_id: procesoId,
-                    name_documento: file.name,
-                    documento: driveResult.webViewLink,
-                    drive_file_id: driveResult.fileId,
-                    tamanio_bytes: file.size,
-                    mime_type: file.type,
-                    extension: file.name.split('.').pop(),
-                    es_publico: true,
-                    subido_por: adminUserId  // ✅ UUID real del admin
-                })
-                .select();
+        if (dbError) throw dbError;
 
-            if (dbError) {
-                console.error('❌ Error guardando documento en BD:', dbError);
-                mostrarStatus(`⚠️ Error guardando ${file.name}`, 'error');
-            }
+        mostrarStatus('✅ Documento guardado correctamente', 'exito');
+        subFormularioDocumento.style.display = 'none';
+        nuevoDocNombre.value = '';
+        nuevoDocDescripcion.value = '';
+        nuevoDocArchivo.value = '';
 
-        } catch (error) {
-            console.error(`❌ Error subiendo ${file.name}:`, error);
-            mostrarStatus(`⚠️ Error subiendo ${file.name}: ${error.message}`, 'error');
-        }
+        // Recargar documentos
+        await cargarDocumentosProceso(procesoId);
+
+    } catch (error) {
+        console.error('❌ Error guardando documento:', error);
+        mostrarStatus('❌ Error: ' + error.message, 'error');
     }
-
-    await cargarDocumentosProceso(procesoId);
-    mostrarStatus('✅ Documentos subidos correctamente', 'exito');
-}
+});
 
 // ============================================
-// FUNCIÓN AUXILIAR: CONVERTIR ARCHIVO A BASE64
-// ============================================
-function fileToBase64(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-            // El resultado tiene el formato "data:application/pdf;base64,XXXX"
-            // Extraer solo la parte base64
-            const base64 = reader.result.split(',')[1];
-            resolve(base64);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-    });
-}
-
-// ============================================
-// FUNCIÓN: ELIMINAR DOCUMENTO (CON DRIVE)
+// MODAL 2: ELIMINAR DOCUMENTO
 // ============================================
 window.eliminarDocumento = function(infoId) {
     modalTitle.textContent = '🗑️ Eliminar Documento';
@@ -439,7 +571,7 @@ window.eliminarDocumento = function(infoId) {
 };
 
 // ============================================
-// FUNCIÓN: ELIMINAR PROCESO
+// MODAL 2: ELIMINAR PROCESO
 // ============================================
 window.eliminarProceso = function(procesoId) {
     modalTitle.textContent = '🗑️ Eliminar Proceso';
@@ -452,7 +584,7 @@ window.eliminarProceso = function(procesoId) {
 };
 
 // ============================================
-// FUNCIÓN: EJECUTAR ACCIÓN DEL MODAL
+// FUNCIÓN: EJECUTAR ACCIÓN DEL MODAL DE CONFIRMACIÓN
 // ============================================
 async function ejecutarAccion() {
     if (!modalAction || !modalData) return;
@@ -462,7 +594,6 @@ async function ejecutarAccion() {
         modalConfirmBtn.textContent = 'Procesando...';
 
         if (modalAction === 'eliminar_documento') {
-            // Obtener el drive_file_id antes de eliminar
             const { data: doc, error: getError } = await supabase
                 .from('info')
                 .select('drive_file_id')
@@ -471,24 +602,22 @@ async function ejecutarAccion() {
 
             if (getError) throw getError;
 
-            // Eliminar de Google Drive
             if (doc?.drive_file_id) {
                 await callDriveOperations('delete-file', { fileId: doc.drive_file_id });
             }
 
-            // Eliminar de la base de datos
             const { error } = await supabase
                 .from('info')
                 .delete()
                 .eq('info_id', modalData.infoId);
 
             if (error) throw error;
+            
             await cargarDocumentosProceso(currentProcesoId);
             mostrarStatus('✅ Documento eliminado', 'exito');
         }
 
         if (modalAction === 'eliminar_proceso') {
-            // Eliminar documentos de Drive asociados al proceso
             const { data: docs, error: docsError } = await supabase
                 .from('info')
                 .select('drive_file_id')
@@ -534,8 +663,23 @@ function cerrarModal() {
 }
 
 // ============================================
-// EVENTOS DEL MODAL
+// EVENTOS DE CIERRE DE MODALES
 // ============================================
+// Modal 1
+cerrarNuevoProcesoBtn.addEventListener('click', () => nuevoProcesoModal.style.display = 'none');
+cancelarNuevoProcesoBtn.addEventListener('click', () => nuevoProcesoModal.style.display = 'none');
+nuevoProcesoModal.addEventListener('click', (e) => {
+    if (e.target === nuevoProcesoModal) nuevoProcesoModal.style.display = 'none';
+});
+
+// Modal 2
+cerrarEditarProcesoBtn.addEventListener('click', () => editarProcesoModal.style.display = 'none');
+cancelarEditarProcesoBtn.addEventListener('click', () => editarProcesoModal.style.display = 'none');
+editarProcesoModal.addEventListener('click', (e) => {
+    if (e.target === editarProcesoModal) editarProcesoModal.style.display = 'none';
+});
+
+// Modal de confirmación
 modalConfirmBtn.addEventListener('click', ejecutarAccion);
 modalCancelBtn.addEventListener('click', cerrarModal);
 modal.addEventListener('click', (e) => {
@@ -548,152 +692,6 @@ modal.addEventListener('click', (e) => {
 if (nuevoProcesoBtn) {
     nuevoProcesoBtn.addEventListener('click', abrirNuevoProceso);
 }
-
-// ============================================
-// EVENTOS: CERRAR PANEL
-// ============================================
-function cerrarProcesoPanel() {
-    procesoPanel.style.right = '-100%';
-}
-
-if (cerrarProcesoPanelBtn) {
-    cerrarProcesoPanelBtn.addEventListener('click', cerrarProcesoPanel);
-}
-if (cancelarProcesoBtn) {
-    cancelarProcesoBtn.addEventListener('click', cerrarProcesoPanel);
-}
-
-// ============================================
-// EVENTO: DROPZONE (ACUMULAR ARCHIVOS)
-// ============================================
-if (dropzone) {
-    dropzone.addEventListener('click', () => fileInput?.click());
-    
-    dropzone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        dropzone.style.borderColor = 'var(--sigatt-blue)';
-        dropzone.style.background = 'var(--sigatt-light-blue)';
-    });
-    
-    dropzone.addEventListener('dragleave', () => {
-        dropzone.style.borderColor = 'var(--sigatt-border)';
-        dropzone.style.background = 'transparent';
-    });
-    
-    dropzone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        dropzone.style.borderColor = 'var(--sigatt-border)';
-        dropzone.style.background = 'transparent';
-        
-        const files = Array.from(e.dataTransfer.files);
-        
-        // ✅ Acumular archivos (NO subir todavía)
-        archivosPendientes = [...archivosPendientes, ...files];
-        mostrarArchivosPendientes();
-        mostrarStatus(`📎 ${archivosPendientes.length} archivo(s) listo(s) para subir al guardar`, 'info');
-    });
-}
-
-if (fileInput) {
-    fileInput.addEventListener('change', (e) => {
-        const files = Array.from(e.target.files);
-        
-        // ✅ Acumular archivos (NO subir todavía)
-        archivosPendientes = [...archivosPendientes, ...files];
-        mostrarArchivosPendientes();
-        mostrarStatus(`📎 ${archivosPendientes.length} archivo(s) listo(s) para subir al guardar`, 'info');
-        fileInput.value = '';
-    });
-}
-
-// ============================================
-// FUNCIÓN: MOSTRAR ARCHIVOS PENDIENTES
-// ============================================
-function mostrarArchivosPendientes() {
-    if (archivosPendientes.length === 0) {
-        documentosLista.innerHTML = '<p class="text-secondary text-small">No hay documentos pendientes de subir.</p>';
-        return;
-    }
-
-    documentosLista.innerHTML = archivosPendientes.map((file, index) => `
-        <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--spacing-sm); border-bottom: 1px solid var(--sigatt-border);">
-            <div>
-                <strong style="font-size: 0.9rem;">📎 ${file.name}</strong>
-                <span class="text-small text-secondary" style="margin-left: var(--spacing-sm);">
-                    ${(file.size / 1024).toFixed(1)} KB
-                </span>
-                <span class="text-small text-secondary" style="margin-left: var(--spacing-sm); color: var(--sigatt-warning);">
-                    (pendiente)
-                </span>
-            </div>
-            <button class="btn-action btn-danger" onclick="eliminarArchivoPendiente(${index})">🗑️</button>
-        </div>
-    `).join('');
-}
-
-// ============================================
-// FUNCIÓN: ELIMINAR ARCHIVO PENDIENTE
-// ============================================
-window.eliminarArchivoPendiente = function(index) {
-    archivosPendientes.splice(index, 1);
-    mostrarArchivosPendientes();
-};
-
-// ============================================
-// EVENTO: GUARDAR PROCESO (CON SUBIDA DE ARCHIVOS)
-// ============================================
-procesoForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-
-    const data = {
-        user_id: procesoUsuario.value || null,
-        codigo_proceso: procesoCodigo.value.trim(),
-        prioridad: procesoPrioridad.value,
-        estado: procesoEstado.value,
-        descripcion: procesoDescripcion.value.trim()
-    };
-
-    try {
-        let procesoIdResult;
-
-        if (procesoId.value) {
-            // Actualizar proceso existente
-            const { error } = await supabase
-                .from('procesos')
-                .update(data)
-                .eq('procesos_id', procesoId.value);
-
-            if (error) throw error;
-            procesoIdResult = procesoId.value;
-            mostrarStatus('✅ Proceso actualizado correctamente', 'exito');
-        } else {
-            // Crear nuevo proceso
-            const { data: newProceso, error } = await supabase
-                .from('procesos')
-                .insert([data])
-                .select()
-                .single();
-
-            if (error) throw error;
-            procesoIdResult = newProceso.procesos_id;
-            mostrarStatus('✅ Proceso creado correctamente', 'exito');
-        }
-
-        // ✅ Subir archivos pendientes (si los hay)
-        if (archivosPendientes.length > 0) {
-            console.log(`📤 Subiendo ${archivosPendientes.length} archivos pendientes...`);
-            await subirDocumentos(procesoIdResult, archivosPendientes);
-            archivosPendientes = [];
-        }
-
-        await cargarProcesos();
-        cerrarProcesoPanel();
-
-    } catch (error) {
-        console.error('❌ Error guardando proceso:', error);
-        mostrarStatus('❌ Error al guardar: ' + error.message, 'error');
-    }
-});
 
 // ============================================
 // EVENTOS: REFRESCAR
@@ -779,7 +777,6 @@ async function init() {
         const session = await protegerRuta();
         if (!session) return;
 
-        // ✅ Guardar el UUID del admin logueado
         adminUserId = session.user.id;
 
         const { data: user } = await supabase
@@ -793,7 +790,6 @@ async function init() {
             userName.textContent = adminNombre;
         }
 
-        // Obtener URL de Drive Operations desde variables de entorno
         const env = await import('../config-loader.js').then(m => m.loadEnv());
         DRIVE_OPERATIONS_URL = env.VITE_DRIVE_OPERATIONS_URL;
 
