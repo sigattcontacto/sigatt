@@ -153,93 +153,204 @@
         </div>
     </footer>
 
+       <!-- ============================================================ -->
+    <!-- ===== MODAL 1: NUEVO PROCESO ===== -->
     <!-- ============================================================ -->
-    <!-- ===== PANEL LATERAL: NUEVO/EDITAR PROCESO ===== -->
-    <!-- ============================================================ -->
-    <div id="procesoPanel" style="position: fixed; top: 0; right: -100%; width: 100%; max-width: 600px; height: 100%; background: var(--sigatt-white); box-shadow: var(--shadow-lg); z-index: 2000; transition: right 0.3s ease; overflow-y: auto; padding: var(--spacing-xl);">
+    <div id="nuevoProcesoModal" style="display: none; position: fixed; inset: 0; background: rgba(7, 43, 87, 0.6); backdrop-filter: blur(4px); z-index: 2000; align-items: center; justify-content: center; padding: var(--spacing-md);">
+        <div style="background: var(--sigatt-white); border-radius: var(--radius-xl); padding: var(--spacing-xl); max-width: 600px; width: 100%; max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow-lg);">
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-lg); padding-bottom: var(--spacing-md); border-bottom: 1px solid var(--sigatt-border);">
+                <h3 style="margin: 0;">📝 Nuevo Proceso</h3>
+                <button id="cerrarNuevoProcesoBtn" style="background: none; border: none; font-size: 1.8rem; cursor: pointer; color: var(--sigatt-text-secondary);">&times;</button>
+            </div>
 
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-lg);">
-            <h3 id="procesoPanelTitulo">Nuevo Proceso</h3>
-            <button id="cerrarProcesoPanelBtn" style="background: none; border: none; font-size: 1.8rem; cursor: pointer; color: var(--sigatt-text-secondary);">&times;</button>
+            <form id="nuevoProcesoForm">
+                <!-- Usuario -->
+                <div class="form-group">
+                    <label class="form-label">Usuario *</label>
+                    <select id="nuevoProcesoUsuario" class="form-input" required>
+                        <option value="">Seleccionar usuario...</option>
+                    </select>
+                </div>
+
+                <!-- Código -->
+                <div class="form-group">
+                    <label class="form-label">Código del Proceso *</label>
+                    <input type="text" id="nuevoProcesoCodigo" class="form-input" placeholder="SIG-20260911-A1B2C3" required>
+                </div>
+
+                <!-- Prioridad -->
+                <div class="form-group">
+                    <label class="form-label">Prioridad</label>
+                    <select id="nuevoProcesoPrioridad" class="form-input">
+                        <option value="baja">🟢 Baja</option>
+                        <option value="normal" selected>🔵 Normal</option>
+                        <option value="alta">🟠 Alta</option>
+                        <option value="urgente">🔴 Urgente</option>
+                    </select>
+                </div>
+
+                <!-- Estado -->
+                <div class="form-group">
+                    <label class="form-label">Estado</label>
+                    <select id="nuevoProcesoEstado" class="form-input">
+                        <option value="pendiente">⏳ Pendiente</option>
+                        <option value="en_revision">🔍 En Revisión</option>
+                        <option value="activo">🔄 Activo</option>
+                        <option value="completado">✅ Completado</option>
+                        <option value="archivado">📦 Archivado</option>
+                    </select>
+                </div>
+
+                <!-- Descripción -->
+                <div class="form-group">
+                    <label class="form-label">Descripción (visible para el usuario)</label>
+                    <textarea id="nuevoProcesoDescripcion" class="form-input" rows="3" placeholder="Descripción del proceso..." style="resize: vertical; min-height: 80px;"></textarea>
+                </div>
+
+                <!-- Botones -->
+                <div style="display: flex; gap: var(--spacing-sm); margin-top: var(--spacing-lg);">
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">💾 Guardar Proceso</button>
+                    <button type="button" id="cancelarNuevoProcesoBtn" class="btn btn-secondary">Cancelar</button>
+                </div>
+            </form>
         </div>
+    </div>
 
-        <form id="procesoForm">
-            <input type="hidden" id="procesoId" value="">
-
-            <!-- Usuario -->
-            <div class="form-group">
-                <label class="form-label">Usuario</label>
-                <select id="procesoUsuario" class="form-input" required>
-                    <option value="">Seleccionar usuario...</option>
-                </select>
+    <!-- ============================================================ -->
+    <!-- ===== MODAL 2: EDITAR PROCESO (UNIFICADO) ===== -->
+    <!-- ============================================================ -->
+    <div id="editarProcesoModal" style="display: none; position: fixed; inset: 0; background: rgba(7, 43, 87, 0.6); backdrop-filter: blur(4px); z-index: 2001; align-items: center; justify-content: center; padding: var(--spacing-md);">
+        <div style="background: var(--sigatt-white); border-radius: var(--radius-xl); padding: var(--spacing-xl); max-width: 800px; width: 100%; max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow-lg);">
+            
+            <!-- ===== CABECERA ===== -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-lg); padding-bottom: var(--spacing-md); border-bottom: 1px solid var(--sigatt-border);">
+                <h3 id="editarProcesoTitulo" style="margin: 0;">✏️ Editar Proceso</h3>
+                <button id="cerrarEditarProcesoBtn" style="background: none; border: none; font-size: 1.8rem; cursor: pointer; color: var(--sigatt-text-secondary);">&times;</button>
             </div>
 
-            <!-- Código -->
-            <div class="form-group">
-                <label class="form-label">Código del Proceso *</label>
-                <input type="text" id="procesoCodigo" class="form-input" placeholder="SIG-20260907-A1B2C3" required>
+            <!-- ===== INFORMACIÓN DEL PROCESO (NO EDITABLE) ===== -->
+            <div style="background: var(--sigatt-background); padding: var(--spacing-md); border-radius: var(--radius-md); margin-bottom: var(--spacing-lg);">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--spacing-md);">
+                    <div>
+                        <p class="text-xs text-secondary" style="margin: 0;">Código</p>
+                        <p class="text-small" style="margin: 0; font-weight: var(--font-weight-semibold);" id="editarProcesoCodigoDisplay">-</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-secondary" style="margin: 0;">Usuario</p>
+                        <p class="text-small" style="margin: 0; font-weight: var(--font-weight-semibold);" id="editarProcesoUsuarioDisplay">-</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-secondary" style="margin: 0;">Fecha de Creación</p>
+                        <p class="text-small" style="margin: 0; font-weight: var(--font-weight-semibold);" id="editarProcesoFechaDisplay">-</p>
+                    </div>
+                </div>
             </div>
 
-            <!-- Prioridad -->
-            <div class="form-group">
-                <label class="form-label">Prioridad</label>
-                <select id="procesoPrioridad" class="form-input">
-                    <option value="baja">🟢 Baja</option>
-                    <option value="normal" selected>🔵 Normal</option>
-                    <option value="alta">🟠 Alta</option>
-                    <option value="urgente">🔴 Urgente</option>
-                </select>
-            </div>
+            <!-- ===== FORMULARIO DE EDICIÓN ===== -->
+            <form id="editarProcesoForm">
+                <input type="hidden" id="editarProcesoId">
 
-            <!-- Estado -->
-            <div class="form-group">
-                <label class="form-label">Estado</label>
-                <select id="procesoEstado" class="form-input">
-                    <option value="pendiente">⏳ Pendiente</option>
-                    <option value="en_revision">🔍 En Revisión</option>
-                    <option value="activo">🔄 Activo</option>
-                    <option value="completado">✅ Completado</option>
-                    <option value="archivado">📦 Archivado</option>
-                </select>
-            </div>
+                <!-- Descripción -->
+                <div class="form-group">
+                    <label class="form-label">Descripción (visible para el usuario)</label>
+                    <textarea id="editarProcesoDescripcion" class="form-input" rows="3" style="resize: vertical; min-height: 80px;"></textarea>
+                </div>
 
-            <!-- Descripción -->
-            <div class="form-group">
-                <label class="form-label">Descripción (visible para el usuario)</label>
-                <textarea id="procesoDescripcion" class="form-input" rows="3" placeholder="Descripción del proceso..." style="resize: vertical; min-height: 80px;"></textarea>
-            </div>
+                <!-- Estado y Prioridad en fila -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-md);">
+                    <div class="form-group">
+                        <label class="form-label">Estado</label>
+                        <select id="editarProcesoEstado" class="form-input">
+                            <option value="pendiente">⏳ Pendiente</option>
+                            <option value="en_revision">🔍 En Revisión</option>
+                            <option value="activo">🔄 Activo</option>
+                            <option value="completado">✅ Completado</option>
+                            <option value="archivado">📦 Archivado</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Prioridad</label>
+                        <select id="editarProcesoPrioridad" class="form-input">
+                            <option value="baja">🟢 Baja</option>
+                            <option value="normal">🔵 Normal</option>
+                            <option value="alta">🟠 Alta</option>
+                            <option value="urgente">🔴 Urgente</option>
+                        </select>
+                    </div>
+                </div>
+            </form>
 
-                        <!-- ===== SECCIÓN DE DOCUMENTOS ===== -->
+            <!-- ===== SECCIÓN DE DOCUMENTOS ===== -->
             <div style="margin-top: var(--spacing-xl); padding-top: var(--spacing-lg); border-top: 1px solid var(--sigatt-border);">
-                <h4 style="margin-bottom: var(--spacing-md);">📎 Documentos</h4>
-                
-                <!-- Dropzone -->
-                <div id="dropzone" style="border: 2px dashed var(--sigatt-border); border-radius: var(--radius-md); padding: var(--spacing-xl); text-align: center; cursor: pointer; transition: all var(--transition-fast);">
-                    <p style="margin: 0; color: var(--sigatt-text-secondary);">
-                        <span style="font-size: 2rem; display: block;">📤</span>
-                        Arrastra archivos aquí o haz clic para seleccionar
-                    </p>
-                    <input type="file" id="fileInput" multiple style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-md);">
+                    <h4 style="margin: 0;">📎 Documentos</h4>
+                    <button type="button" id="agregarDocumentoBtn" class="btn btn-sm btn-primary">
+                        ➕ Agregar Documento
+                    </button>
                 </div>
 
-                <!-- Lista de documentos -->
-                <div id="documentosLista" style="margin-top: var(--spacing-md);">
-                    <p class="text-secondary text-small">No hay documentos subidos.</p>
+                <!-- Tabla de documentos -->
+                <div style="overflow-x: auto;">
+                    <table class="dashboard-table" style="font-size: 0.85rem;">
+                        <thead>
+                            <tr>
+                                <th style="width: 30px;">#</th>
+                                <th>Nombre Documento</th>
+                                <th>Descripción</th>
+                                <th>Archivo</th>
+                                <th style="width: 80px; text-align: center;">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="documentosTablaBody">
+                            <tr>
+                                <td colspan="5" style="text-align: center; padding: var(--spacing-lg); color: var(--sigatt-text-secondary);">
+                                    No hay documentos cargados.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- ===== SUB-FORMULARIO INLINE: AGREGAR DOCUMENTO ===== -->
+                <div id="subFormularioDocumento" style="display: none; margin-top: var(--spacing-md); padding: var(--spacing-md); background: var(--sigatt-light-blue); border-radius: var(--radius-md); border: 1px solid var(--sigatt-blue);">
+                    <h5 style="margin: 0 0 var(--spacing-md) 0; font-size: 0.9rem;">📎 Nuevo Documento</h5>
+                    
+                    <div class="form-group" style="margin-bottom: var(--spacing-sm);">
+                        <label class="form-label text-small">Nombre del Documento *</label>
+                        <input type="text" id="nuevoDocNombre" class="form-input" style="height: 40px;" placeholder="Ej: cedula.pdf">
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: var(--spacing-sm);">
+                        <label class="form-label text-small">Descripción (anotación)</label>
+                        <input type="text" id="nuevoDocDescripcion" class="form-input" style="height: 40px;" placeholder="Ej: Documento de identidad">
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: var(--spacing-sm);">
+                        <label class="form-label text-small">Archivo *</label>
+                        <input type="file" id="nuevoDocArchivo" class="form-input" style="height: 40px; padding: 6px;">
+                        <small class="text-xs text-secondary">📌 Solo se permite un archivo por carga</small>
+                    </div>
+
+                    <div style="display: flex; gap: var(--spacing-sm); margin-top: var(--spacing-md);">
+                        <button type="button" id="guardarDocumentoBtn" class="btn btn-sm btn-success" style="flex: 1;">💾 Guardar Documento</button>
+                        <button type="button" id="cancelarDocumentoBtn" class="btn btn-sm btn-secondary">Cancelar</button>
+                    </div>
                 </div>
             </div>
 
-            <!-- Botones -->
-            <div style="display: flex; gap: var(--spacing-sm); margin-top: var(--spacing-xl);">
-                <button type="submit" class="btn btn-primary" style="flex: 1;">Guardar Proceso</button>
-                <button type="button" id="cancelarProcesoBtn" class="btn btn-secondary">Cancelar</button>
+            <!-- ===== BOTONES PRINCIPALES ===== -->
+            <div style="display: flex; gap: var(--spacing-sm); margin-top: var(--spacing-xl); padding-top: var(--spacing-lg); border-top: 1px solid var(--sigatt-border);">
+                <button type="button" id="guardarCambiosProcesoBtn" class="btn btn-primary" style="flex: 1;">💾 Guardar Cambios</button>
+                <button type="button" id="cancelarEditarProcesoBtn" class="btn btn-secondary">Cancelar</button>
             </div>
-        </form>
+        </div>
     </div>
 
     <!-- ============================================================ -->
     <!-- ===== MODAL DE CONFIRMACIÓN ===== -->
     <!-- ============================================================ -->
-    <div id="confirmModal" style="display: none; position: fixed; inset: 0; background: rgba(7, 43, 87, 0.5); backdrop-filter: blur(4px); z-index: 3000; align-items: center; justify-content: center; padding: var(--spacing-md);">
+    <div id="confirmModal" style="display: none; position: fixed; inset: 0; background: rgba(7, 43, 87, 0.6); backdrop-filter: blur(4px); z-index: 3000; align-items: center; justify-content: center; padding: var(--spacing-md);">
         <div style="background: var(--sigatt-white); border-radius: var(--radius-xl); padding: var(--spacing-xl); max-width: 480px; width: 100%; box-shadow: var(--shadow-lg);">
             <h3 id="modalTitle" style="margin-bottom: var(--spacing-sm);">Confirmar acción</h3>
             <p id="modalMessage" class="text-secondary" style="margin-bottom: var(--spacing-lg);">¿Estás seguro de realizar esta acción?</p>
@@ -250,9 +361,7 @@
         </div>
     </div>
 
-    <!-- ============================================================ -->
     <!-- ===== SCRIPTS ===== -->
-    <!-- ============================================================ -->
     <script type="module">
         import { loadEnv } from '../js/config-loader.js';
         await loadEnv();
